@@ -22,7 +22,6 @@ export default function App() {
   const [filterBuyer, setFilterBuyer] = useState('')
   const [filterProduct, setFilterProduct] = useState('')
 
-  // ── Load data from Supabase ──
   async function loadAll() {
     setLoading(true)
     setError(null)
@@ -44,7 +43,6 @@ export default function App() {
 
   useEffect(() => { loadAll() }, [])
 
-  // ── New document form ──
   const [lang, setLang] = useState('EN')
   const [docType, setDocType] = useState('both')
   const [f, setF] = useState({
@@ -110,7 +108,6 @@ export default function App() {
     setSaving(true)
     setError(null)
     try {
-      // Save buyer if new
       if (doc.buyer && !buyers.find(b => b.name === doc.buyer)) {
         await saveBuyer(doc.buyer, doc.buyerAddress || '')
       }
@@ -119,9 +116,7 @@ export default function App() {
       setNextCounter(n => (typeof n === 'number' ? n + 1 : n))
       setPreview(null)
       setTab(1)
-      // Reset form (keep buyer + product for next doc)
       setF(p => ({ ...p, lotSerial: '', truckNumber: '', dateProduction: '', pallets: 9, manualLots: false, customLots: [] }))
-      // Reload buyers list
       const fresh = await fetchBuyers()
       setBuyers(fresh)
     } catch (e) {
@@ -150,7 +145,6 @@ export default function App() {
     }
   }
 
-  // ── Buyers management ──
   const [newBuyerName, setNewBuyerName] = useState('')
   const [newBuyerAddr, setNewBuyerAddr] = useState('')
 
@@ -162,23 +156,23 @@ export default function App() {
         const exists = prev.find(x => x.id === b.id)
         return exists ? prev.map(x => x.id === b.id ? b : x) : [...prev, b]
       })
-      setNewBuyerName(''); setNewBuyerAddr('')
+      setNewBuyerName('')
+      setNewBuyerAddr('')
     } catch (e) {
       setError('Błąd zapisu nabywcy: ' + e.message)
     }
   }
 
   async function handleDeleteBuyer(id) {
-    if (!window.confirm('Usunąć nabywcę?')) return
+    if (!window.confirm('Usunąć klienta?')) return
     try {
       await deleteBuyer(id)
       setBuyers(b => b.filter(x => x.id !== id))
     } catch (e) {
-      setError('Błąd usuwania nabywcy: ' + e.message)
+      setError('Błąd usuwania klienta: ' + e.message)
     }
   }
 
-  // ── Archive import ──
   const [archOpen, setArchOpen] = useState(false)
   const [arch, setArch] = useState({
     certNumber: '', buyerName: '', buyerAddress: '', productCode: '4.1/P',
@@ -196,7 +190,9 @@ export default function App() {
     const ap = PACKAGINGS.find(p => p.value === arch.packaging) || PACKAGINGS[0]
     const akpL = ap.bagKg * ap.bagsPerPallet
     const alots = generateLots(arch.lotPrefix, arch.lotSerial, Number(arch.pallets), akpL)
-    const aprod = arch.dateProduction || (() => { const d = new Date(arch.dateLoading); d.setDate(d.getDate() - 1); return d.toISOString().slice(0, 10) })()
+    const aprod = arch.dateProduction || (() => {
+      const d = new Date(arch.dateLoading); d.setDate(d.getDate() - 1); return d.toISOString().slice(0, 10)
+    })()
     const doc = {
       certNumber: arch.certNumber,
       buyer: arch.buyerName, buyerAddress: arch.buyerAddress,
@@ -227,14 +223,8 @@ export default function App() {
     (!filterProduct || c.productCode === filterProduct)
   )
 
-  // ── Render preview ──
   if (preview) return (
-    <Preview
-      doc={preview}
-      onSave={handleSave}
-      onBack={() => setPreview(null)}
-      saving={saving}
-    />
+    <Preview doc={preview} onSave={handleSave} onBack={() => setPreview(null)} saving={saving} />
   )
 
   return (
@@ -245,9 +235,7 @@ export default function App() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
           <div>
             <div style={{ fontSize: 18, fontWeight: 500, letterSpacing: 1 }}>🌿 ECOCORN</div>
-            <div style={{ fontSize: 11, color: 'var(--color-text-secondary)' }}>
-              System certyfikatów jakości · Eco-corn Sp. z o.o.
-            </div>
+            <div style={{ fontSize: 11, color: 'var(--color-text-secondary)' }}>System certyfikatów jakości · Eco-corn Sp. z o.o.</div>
           </div>
           <div style={{ textAlign: 'right' }}>
             <div style={{ fontSize: 11, color: 'var(--color-text-secondary)' }}>Następny nr certyfikatu</div>
@@ -255,9 +243,9 @@ export default function App() {
           </div>
         </div>
         <div style={{ display: 'flex' }}>
-          {['Nowy dokument', 'Baza certyfikatów', 'Archiwum', 'Nabywcy'].map((t, i) => (
+          {['Nowy dokument', 'Baza certyfikatów', 'Archiwum', 'Klienci', 'Produkty', 'Opakowania'].map((t, i) => (
             <button key={t} onClick={() => setTab(i)} style={{
-              padding: '7px 16px', border: 'none', background: 'transparent', cursor: 'pointer',
+              padding: '7px 14px', border: 'none', background: 'transparent', cursor: 'pointer',
               fontSize: 13, fontWeight: tab === i ? 500 : 400,
               color: tab === i ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
               borderBottom: tab === i ? '2px solid var(--color-text-primary)' : '2px solid transparent',
@@ -272,7 +260,7 @@ export default function App() {
       <div style={{ padding: '18px 20px 0' }}>
         <ErrorBanner message={error} onDismiss={() => setError(null)} />
 
-        {/* ── TAB 0: NEW DOCUMENT ── */}
+        {/* ── TAB 0: NOWY DOKUMENT ── */}
         {tab === 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
@@ -391,7 +379,6 @@ export default function App() {
               </div>
             </Sec>
 
-            {/* Summary */}
             <div style={{ background: 'var(--color-background-secondary)', borderRadius: 10, padding: '12px 16px', display: 'flex', gap: 24, flexWrap: 'wrap' }}>
               {[
                 ['Produkt', `${f.productCode} · ${product.name}`],
@@ -428,7 +415,7 @@ export default function App() {
           </div>
         )}
 
-        {/* ── TAB 1: DATABASE ── */}
+        {/* ── TAB 1: BAZA CERTYFIKATÓW ── */}
         {tab === 1 && (
           <div>
             <div style={{ display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -448,7 +435,7 @@ export default function App() {
           </div>
         )}
 
-        {/* ── TAB 2: ARCHIVE ── */}
+        {/* ── TAB 2: ARCHIWUM ── */}
         {tab === 2 && (
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
@@ -457,7 +444,6 @@ export default function App() {
                 {archOpen ? 'Anuluj' : '+ Dodaj archiwalny'}
               </button>
             </div>
-
             {archOpen && (
               <Sec label="Dodaj certyfikat archiwalny" style={{ marginBottom: 14 }}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
@@ -489,7 +475,6 @@ export default function App() {
                 </div>
               </Sec>
             )}
-
             {loading ? <Spinner /> : certs.filter(c => c.status === 'archived' || c.status === 'sent').length === 0
               ? <div style={{ textAlign: 'center', padding: '30px 0', fontSize: 13, color: 'var(--color-text-secondary)' }}>Brak certyfikatów archiwalnych.</div>
               : certs.filter(c => c.status === 'archived' || c.status === 'sent').map(cert => (
@@ -502,20 +487,20 @@ export default function App() {
           </div>
         )}
 
-        {/* ── TAB 3: BUYERS ── */}
+        {/* ── TAB 3: KLIENCI ── */}
         {tab === 3 && (
           <div>
-            <Sec label="Dodaj / edytuj nabywcę" style={{ marginBottom: 14 }}>
+            <Sec label="Dodaj nowego klienta" style={{ marginBottom: 14 }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 10, alignItems: 'end' }}>
-                <div><Lbl>Nazwa firmy</Lbl><Inp value={newBuyerName} onChange={setNewBuyerName} placeholder="Nazwa nabywcy..." /></div>
+                <div><Lbl>Nazwa firmy</Lbl><Inp value={newBuyerName} onChange={setNewBuyerName} placeholder="Nazwa klienta..." /></div>
                 <div><Lbl>Adres</Lbl><Inp value={newBuyerAddr} onChange={setNewBuyerAddr} placeholder="Adres..." /></div>
                 <button onClick={handleAddBuyer} style={{ padding: '8px 16px', background: '#185fa5', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap' }}>
-                  + Zapisz nabywcę
+                  + Zapisz
                 </button>
               </div>
             </Sec>
             {loading ? <Spinner /> : buyers.length === 0
-              ? <div style={{ textAlign: 'center', padding: '30px 0', fontSize: 13, color: 'var(--color-text-secondary)' }}>Brak nabywców w bazie.</div>
+              ? <div style={{ textAlign: 'center', padding: '30px 0', fontSize: 13, color: 'var(--color-text-secondary)' }}>Brak klientów w bazie.</div>
               : buyers.map(b => (
                 <div key={b.id} style={{ background: 'var(--color-background-primary)', border: '0.5px solid var(--color-border-tertiary)', borderRadius: 10, padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 12, marginBottom: 7 }}>
                   <div style={{ flex: 1 }}>
@@ -528,6 +513,53 @@ export default function App() {
             }
           </div>
         )}
+
+        {/* ── TAB 4: PRODUKTY ── */}
+        {tab === 4 && (
+          <div>
+            <Sec label="Lista produktów">
+              <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginBottom: 12 }}>
+                Produkty dostępne przy tworzeniu certyfikatów.
+              </div>
+              {PRODUCTS.map(p => (
+                <div key={p.code} style={{ background: 'var(--color-background-primary)', border: '0.5px solid var(--color-border-tertiary)', borderRadius: 10, padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 16, marginBottom: 7 }}>
+                  <div style={{ background: '#e1f5ee', color: '#085041', fontWeight: 500, fontSize: 13, padding: '4px 12px', borderRadius: 8, whiteSpace: 'nowrap' }}>{p.code}</div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 500, fontSize: 14 }}>{p.name}</div>
+                    <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>{p.namePL}</div>
+                  </div>
+                </div>
+              ))}
+            </Sec>
+          </div>
+        )}
+
+        {/* ── TAB 5: OPAKOWANIA ── */}
+        {tab === 5 && (
+          <div>
+            <Sec label="Lista opakowań">
+              <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginBottom: 12 }}>
+                Parametry opakowań używane do obliczeń wagi i generowania dokumentów.
+              </div>
+              {PACKAGINGS.map(p => (
+                <div key={p.value} style={{ background: 'var(--color-background-primary)', border: '0.5px solid var(--color-border-tertiary)', borderRadius: 10, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 16, marginBottom: 7 }}>
+                  <div style={{ background: '#e6f1fb', color: '#042c53', fontWeight: 500, fontSize: 13, padding: '4px 12px', borderRadius: 8, whiteSpace: 'nowrap' }}>{p.label}</div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 500, fontSize: 14 }}>{p.value}</div>
+                    <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>
+                      {p.bagKg} kg/szt · {p.bagsPerPallet} szt/paleta · <strong>{(p.bagKg * p.bagsPerPallet).toLocaleString()} kg/paleta</strong>
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: 22, fontWeight: 500 }}>{(p.bagKg * p.bagsPerPallet).toLocaleString()}</div>
+                    <div style={{ fontSize: 11, color: 'var(--color-text-secondary)' }}>kg / paleta</div>
+                  </div>
+                </div>
+              ))}
+            </Sec>
+          </div>
+        )}
+
       </div>
     </div>
   )
