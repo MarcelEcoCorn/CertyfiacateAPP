@@ -3,10 +3,10 @@ import {
   fetchCertificates, saveCertificate, updateCertificateStatus,
   deleteCertificate, fetchBuyers, saveBuyer, deleteBuyer,
   fetchCurrentCounter, archiveCertificate,
+  fetchProducts, saveProduct, deleteProduct,
+  fetchPackagings, savePackaging, deletePackaging,
 } from './lib/supabase.js'
-import {
-  PRODUCTS, PACKAGINGS, today, fmtD, addYear, yearShort, generateLots,
-} from './lib/constants.js'
+import { today, fmtD, addYear, yearShort, generateLots } from './lib/constants.js'
 import { Inp, Sel, Lbl, Sec, Toggle, Combo, LotGrid, CertRow, Spinner, ErrorBanner } from './components/UI.jsx'
 import Preview from './components/Preview.jsx'
 
@@ -14,6 +14,8 @@ export default function App() {
   const [tab, setTab] = useState(0)
   const [certs, setCerts] = useState([])
   const [buyers, setBuyers] = useState([])
+  const [products, setProducts] = useState([])
+  const [packagings, setPackagings] = useState([])
   const [nextCounter, setNextCounter] = useState('…')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -26,13 +28,17 @@ export default function App() {
     setLoading(true)
     setError(null)
     try {
-      const [certsData, buyersData, counter] = await Promise.all([
+      const [certsData, buyersData, prodsData, packsData, counter] = await Promise.all([
         fetchCertificates(),
         fetchBuyers(),
+        fetchProducts(),
+        fetchPackagings(),
         fetchCurrentCounter(),
       ])
       setCerts(certsData)
       setBuyers(buyersData)
+      setProducts(prodsData)
+      setPackagings(packsData)
       setNextCounter(counter)
     } catch (e) {
       setError('Błąd połączenia z bazą danych: ' + e.message)
@@ -43,21 +49,36 @@ export default function App() {
 
   useEffect(() => { loadAll() }, [])
 
+  // ── Form state ──
   const [lang, setLang] = useState('EN')
   const [docType, setDocType] = useState('both')
   const [f, setF] = useState({
     buyerName: '', buyerAddress: '',
-    productCode: '4.1/P', packaging: 'PAPPER BAGS 25',
+    productCode: '', packaging: '',
     pallets: 9,
-    lotPrefix: `4.1/P/${yearShort()}/`, lotSerial: '',
+    lotPrefix: '', lotSerial: '',
     manualLots: false, customLots: [],
     dateLoading: today(), dateProduction: '',
     truckNumber: '', origin: 'Poland',
   })
 
-  const packInfo = PACKAGINGS.find(p => p.value === f.packaging) || PACKAGINGS[0]
-  const product = PRODUCTS.find(p => p.code === f.productCode) || PRODUCTS[0]
-  const kgPerLot = packInfo.bagKg * packInfo.bagsPerPallet
+  // Sync defaults when products/packagings load
+  useEffect(() => {
+    if (products.length && !f.productCode) {
+      const p = products[0]
+      setF(prev => ({ ...prev, productCode: p.code, lotPrefix: `${p.code}/${yearShort()}/` }))
+    }
+  }, [products])
+
+  useEffect(() => {
+    if (packagings.length && !f.packaging) {
+      setF(prev => ({ ...prev, packaging: packagings[0].value }))
+    }
+  }, [packagings])
+
+  const packInfo = packagings.find(p => p.value === f.packaging) || packagings[0]
+  const product = products.find(p => p.code === f.productCode) || products[0]
+  const kgPerLot = packInfo ? packInfo.bagKg * packInfo.bagsPerPallet : 0
   const numPallets = Math.max(1, Math.min(34, Number(f.pallets) || 1))
   const totalKg = numPallets * kgPerLot
   const grossKg = Math.round(totalKg * 1.031)
@@ -95,9 +116,10 @@ export default function App() {
   function openPreview() {
     const doc = {
       buyer: f.buyerName, buyerAddress: f.buyerAddress,
-      productCode: f.productCode, productName: product.name,
+      productCode: f.productCode, productName: product?.name || '',
       dateLoading: f.dateLoading, dateProduction: dateProd, bestBefore,
-      packaging: f.packaging, origin: f.origin, truckNumber: f.truckNumber,
+      packaging: packInfo?.label || f.packaging,
+      origin: f.origin, truckNumber: f.truckNumber,
       lots: activeLots, totalKg, grossKg, pallets: numPallets, kgPerLot,
       lang, docType, status: 'saved',
     }
@@ -109,7 +131,7 @@ export default function App() {
     setError(null)
     try {
       if (doc.buyer && !buyers.find(b => b.name === doc.buyer)) {
-        await saveBuyer(doc.buyer, doc.buyerAddress || '')
+        await saveBuyer({ name: doc.buyer, address: doc.buyerAddress || '' })
       }
       const saved = await saveCertificate(doc)
       setCerts(c => [saved, ...c])
@@ -130,37 +152,31 @@ export default function App() {
     try {
       const updated = await updateCertificateStatus(id, 'sent', { sent_date: today() })
       setCerts(c => c.map(x => x.id === id ? updated : x))
-    } catch (e) {
-      setError('Błąd aktualizacji: ' + e.message)
-    }
+    } catch (e) { setError('Błąd: ' + e.message) }
   }
 
   async function handleDelete(id) {
-    if (!window.confirm('Usunąć certyfikat z bazy?')) return
+    if (!window.confirm('Usunąć certyfikat?')) return
     try {
       await deleteCertificate(id)
       setCerts(c => c.filter(x => x.id !== id))
-    } catch (e) {
-      setError('Błąd usuwania: ' + e.message)
-    }
+    } catch (e) { setError('Błąd: ' + e.message) }
   }
 
-  const [newBuyerName, setNewBuyerName] = useState('')
-  const [newBuyerAddr, setNewBuyerAddr] = useState('')
+  // ── Buyers ──
+  const [newBuyer, setNewBuyer] = useState({ name: '', address: '', nip: '', deliveryAddress: '' })
+  function snb(k, v) { setNewBuyer(p => ({ ...p, [k]: v })) }
 
   async function handleAddBuyer() {
-    if (!newBuyerName.trim()) return
+    if (!newBuyer.name.trim()) return
     try {
-      const b = await saveBuyer(newBuyerName.trim(), newBuyerAddr.trim())
+      const b = await saveBuyer(newBuyer)
       setBuyers(prev => {
         const exists = prev.find(x => x.id === b.id)
         return exists ? prev.map(x => x.id === b.id ? b : x) : [...prev, b]
       })
-      setNewBuyerName('')
-      setNewBuyerAddr('')
-    } catch (e) {
-      setError('Błąd zapisu nabywcy: ' + e.message)
-    }
+      setNewBuyer({ name: '', address: '', nip: '', deliveryAddress: '' })
+    } catch (e) { setError('Błąd zapisu klienta: ' + e.message) }
   }
 
   async function handleDeleteBuyer(id) {
@@ -168,16 +184,66 @@ export default function App() {
     try {
       await deleteBuyer(id)
       setBuyers(b => b.filter(x => x.id !== id))
-    } catch (e) {
-      setError('Błąd usuwania klienta: ' + e.message)
-    }
+    } catch (e) { setError('Błąd: ' + e.message) }
   }
 
+  // ── Products ──
+  const [newProd, setNewProd] = useState({ code: '', nameEn: '', namePl: '' })
+  function snp(k, v) { setNewProd(p => ({ ...p, [k]: v })) }
+
+  async function handleAddProduct() {
+    if (!newProd.code.trim() || !newProd.nameEn.trim() || !newProd.namePl.trim()) {
+      setError('Uzupełnij kod, nazwę EN i nazwę PL produktu')
+      return
+    }
+    try {
+      const p = await saveProduct(newProd.code.trim(), newProd.nameEn.trim(), newProd.namePl.trim())
+      setProducts(prev => {
+        const exists = prev.find(x => x.id === p.id)
+        return exists ? prev.map(x => x.id === p.id ? p : x) : [...prev, p]
+      })
+      setNewProd({ code: '', nameEn: '', namePl: '' })
+    } catch (e) { setError('Błąd zapisu produktu: ' + e.message) }
+  }
+
+  async function handleDeleteProduct(id) {
+    if (!window.confirm('Usunąć produkt?')) return
+    try {
+      await deleteProduct(id)
+      setProducts(p => p.filter(x => x.id !== id))
+    } catch (e) { setError('Błąd: ' + e.message) }
+  }
+
+  // ── Packagings ──
+  const [newPack, setNewPack] = useState({ namePl: '', nameEn: '', bagKg: '', bagsPerPallet: '' })
+  function snk(k, v) { setNewPack(p => ({ ...p, [k]: v })) }
+
+  async function handleAddPackaging() {
+    if (!newPack.namePl.trim() || !newPack.nameEn.trim() || !newPack.bagKg || !newPack.bagsPerPallet) {
+      setError('Uzupełnij wszystkie pola opakowania')
+      return
+    }
+    try {
+      const p = await savePackaging(newPack.namePl.trim(), newPack.nameEn.trim(), Number(newPack.bagKg), Number(newPack.bagsPerPallet))
+      setPackagings(prev => [...prev, p])
+      setNewPack({ namePl: '', nameEn: '', bagKg: '', bagsPerPallet: '' })
+    } catch (e) { setError('Błąd zapisu opakowania: ' + e.message) }
+  }
+
+  async function handleDeletePackaging(id) {
+    if (!window.confirm('Usunąć opakowanie?')) return
+    try {
+      await deletePackaging(id)
+      setPackagings(p => p.filter(x => x.id !== id))
+    } catch (e) { setError('Błąd: ' + e.message) }
+  }
+
+  // ── Archive ──
   const [archOpen, setArchOpen] = useState(false)
   const [arch, setArch] = useState({
-    certNumber: '', buyerName: '', buyerAddress: '', productCode: '4.1/P',
-    packaging: 'PAPPER BAGS 25', pallets: 2,
-    lotPrefix: `4.1/P/${yearShort()}/`, lotSerial: '',
+    certNumber: '', buyerName: '', buyerAddress: '', productCode: '',
+    packaging: '', pallets: 2,
+    lotPrefix: '', lotSerial: '',
     dateLoading: today(), dateProduction: '', truckNumber: '', sentDate: today(),
   })
   function sa(k, v) { setArch(p => ({ ...p, [k]: v })) }
@@ -187,19 +253,21 @@ export default function App() {
       setError('Uzupełnij: numer certyfikatu, nabywcę i numer LOT')
       return
     }
-    const ap = PACKAGINGS.find(p => p.value === arch.packaging) || PACKAGINGS[0]
+    const ap = packagings.find(p => p.value === arch.packaging) || packagings[0]
+    if (!ap) { setError('Wybierz opakowanie'); return }
     const akpL = ap.bagKg * ap.bagsPerPallet
     const alots = generateLots(arch.lotPrefix, arch.lotSerial, Number(arch.pallets), akpL)
     const aprod = arch.dateProduction || (() => {
       const d = new Date(arch.dateLoading); d.setDate(d.getDate() - 1); return d.toISOString().slice(0, 10)
     })()
+    const archProd = products.find(p => p.code === arch.productCode) || products[0]
     const doc = {
       certNumber: arch.certNumber,
       buyer: arch.buyerName, buyerAddress: arch.buyerAddress,
-      productCode: arch.productCode,
-      productName: PRODUCTS.find(p => p.code === arch.productCode)?.name || '',
+      productCode: arch.productCode || archProd?.code || '',
+      productName: archProd?.name || '',
       dateLoading: arch.dateLoading, dateProduction: aprod, bestBefore: addYear(aprod),
-      packaging: arch.packaging, origin: 'Poland', truckNumber: arch.truckNumber,
+      packaging: ap.label, origin: 'Poland', truckNumber: arch.truckNumber,
       lots: alots, totalKg: Number(arch.pallets) * akpL,
       grossKg: Math.round(Number(arch.pallets) * akpL * 1.031),
       pallets: Number(arch.pallets), kgPerLot: akpL,
@@ -211,11 +279,8 @@ export default function App() {
       setCerts(c => [saved, ...c])
       setArchOpen(false)
       setArch(p => ({ ...p, certNumber: '', lotSerial: '', truckNumber: '' }))
-    } catch (e) {
-      setError('Błąd archiwizacji: ' + e.message)
-    } finally {
-      setSaving(false)
-    }
+    } catch (e) { setError('Błąd archiwizacji: ' + e.message) }
+    finally { setSaving(false) }
   }
 
   const filteredCerts = certs.filter(c =>
@@ -227,8 +292,16 @@ export default function App() {
     <Preview doc={preview} onSave={handleSave} onBack={() => setPreview(null)} saving={saving} />
   )
 
+  const tabStyle = (i) => ({
+    padding: '7px 14px', border: 'none', background: 'transparent', cursor: 'pointer',
+    fontSize: 13, fontWeight: tab === i ? 500 : 400,
+    color: tab === i ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
+    borderBottom: tab === i ? '2px solid var(--color-text-primary)' : '2px solid transparent',
+    whiteSpace: 'nowrap',
+  })
+
   return (
-    <div style={{ fontFamily: "'Segoe UI', system-ui, sans-serif", maxWidth: 860, margin: '0 auto', paddingBottom: 40 }}>
+    <div style={{ fontFamily: "'Segoe UI', system-ui, sans-serif", maxWidth: 900, margin: '0 auto', paddingBottom: 40 }}>
 
       {/* Header */}
       <div style={{ borderBottom: '0.5px solid var(--color-border-tertiary)', padding: '14px 20px 0', background: 'var(--color-background-primary)', position: 'sticky', top: 0, zIndex: 10 }}>
@@ -242,16 +315,11 @@ export default function App() {
             <div style={{ fontSize: 16, fontWeight: 500 }}>{nextCounter}/2026/EN</div>
           </div>
         </div>
-        <div style={{ display: 'flex' }}>
+        <div style={{ display: 'flex', overflowX: 'auto' }}>
           {['Nowy dokument', 'Baza certyfikatów', 'Archiwum', 'Klienci', 'Produkty', 'Opakowania'].map((t, i) => (
-            <button key={t} onClick={() => setTab(i)} style={{
-              padding: '7px 14px', border: 'none', background: 'transparent', cursor: 'pointer',
-              fontSize: 13, fontWeight: tab === i ? 500 : 400,
-              color: tab === i ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
-              borderBottom: tab === i ? '2px solid var(--color-text-primary)' : '2px solid transparent',
-            }}>{t}</button>
+            <button key={t} onClick={() => setTab(i)} style={tabStyle(i)}>{t}</button>
           ))}
-          <button onClick={loadAll} style={{ marginLeft: 'auto', padding: '4px 10px', border: '0.5px solid var(--color-border-tertiary)', borderRadius: 7, background: 'transparent', cursor: 'pointer', fontSize: 12, color: 'var(--color-text-secondary)' }}>
+          <button onClick={loadAll} style={{ marginLeft: 'auto', padding: '4px 10px', border: '0.5px solid var(--color-border-tertiary)', borderRadius: 7, background: 'transparent', cursor: 'pointer', fontSize: 12, color: 'var(--color-text-secondary)', whiteSpace: 'nowrap' }}>
             ↺ Odśwież
           </button>
         </div>
@@ -289,11 +357,13 @@ export default function App() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                 <div>
                   <Lbl>Produkt</Lbl>
-                  <Sel value={f.productCode} onChange={onProductChange} options={PRODUCTS.map(p => ({ value: p.code, label: `${p.code} — ${p.name}` }))} />
+                  <Sel value={f.productCode} onChange={onProductChange}
+                    options={products.map(p => ({ value: p.code, label: `${p.code} — ${p.name}` }))} />
                 </div>
                 <div>
                   <Lbl>Opakowanie <span style={{ fontSize: 10, color: 'var(--color-text-secondary)' }}>→ {kgPerLot.toLocaleString()} kg/paleta</span></Lbl>
-                  <Sel value={f.packaging} onChange={v => sf('packaging', v)} options={PACKAGINGS.map(p => ({ value: p.value, label: `${p.label} → ${(p.bagKg * p.bagsPerPallet).toLocaleString()} kg/paleta` }))} />
+                  <Sel value={f.packaging} onChange={v => sf('packaging', v)}
+                    options={packagings.map(p => ({ value: p.value, label: `${p.label} → ${(p.bagKg * p.bagsPerPallet).toLocaleString()} kg/paleta` }))} />
                 </div>
               </div>
             </Sec>
@@ -316,7 +386,8 @@ export default function App() {
                 </div>
                 <div>
                   <Lbl>Kraj pochodzenia</Lbl>
-                  <Sel value={f.origin} onChange={v => sf('origin', v)} options={[{ value: 'Poland', label: 'Poland' }, { value: 'Polska', label: 'Polska' }]} />
+                  <Sel value={f.origin} onChange={v => sf('origin', v)}
+                    options={[{ value: 'Poland', label: 'Poland' }, { value: 'Polska', label: 'Polska' }]} />
                 </div>
               </div>
 
@@ -339,7 +410,6 @@ export default function App() {
                   ← Wpisz numer seryjny pierwszej partii aby wygenerować tabelę LOT
                 </div>
               )}
-
               {f.manualLots && (
                 <div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
@@ -381,7 +451,7 @@ export default function App() {
 
             <div style={{ background: 'var(--color-background-secondary)', borderRadius: 10, padding: '12px 16px', display: 'flex', gap: 24, flexWrap: 'wrap' }}>
               {[
-                ['Produkt', `${f.productCode} · ${product.name}`],
+                ['Produkt', product ? `${product.code} · ${product.name}` : '—'],
                 ['Palety', numPallets],
                 ['Kg netto', `${totalKg.toLocaleString()} kg`],
                 ['Kg brutto', `${grossKg.toLocaleString()} kg`],
@@ -402,11 +472,11 @@ export default function App() {
             )}
 
             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-              <button disabled={formErrors.length > 0} onClick={openPreview} style={{
+              <button disabled={formErrors.length > 0 || loading} onClick={openPreview} style={{
                 padding: '10px 28px',
-                background: formErrors.length > 0 ? '#ccc' : '#0f6e56',
+                background: formErrors.length > 0 || loading ? '#ccc' : '#0f6e56',
                 color: '#fff', border: 'none', borderRadius: 10,
-                cursor: formErrors.length > 0 ? 'not-allowed' : 'pointer',
+                cursor: formErrors.length > 0 || loading ? 'not-allowed' : 'pointer',
                 fontSize: 14, fontWeight: 500,
               }}>
                 Podgląd i generuj dokumenty →
@@ -420,7 +490,8 @@ export default function App() {
           <div>
             <div style={{ display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap', alignItems: 'center' }}>
               <Inp value={filterBuyer} onChange={setFilterBuyer} placeholder="Szukaj nabywcy..." style={{ width: 200 }} />
-              <Sel value={filterProduct} onChange={setFilterProduct} options={[{ value: '', label: 'Wszystkie produkty' }, ...PRODUCTS.map(p => ({ value: p.code, label: p.code }))]} />
+              <Sel value={filterProduct} onChange={setFilterProduct}
+                options={[{ value: '', label: 'Wszystkie produkty' }, ...products.map(p => ({ value: p.code, label: p.code }))]} />
               <div style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--color-text-secondary)' }}>{filteredCerts.length} certyfikatów</div>
             </div>
             {loading ? <Spinner /> : filteredCerts.length === 0
@@ -449,17 +520,18 @@ export default function App() {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
                   <div><Lbl>Nr certyfikatu *</Lbl><Inp value={arch.certNumber} onChange={v => sa('certNumber', v)} placeholder="94/2026/EN" /></div>
                   <div><Lbl>Nabywca *</Lbl><Combo value={arch.buyerName} options={buyers.map(b => b.name)} onChange={name => { const b = buyers.find(b => b.name === name); setArch(a => ({ ...a, buyerName: name, buyerAddress: b?.address || a.buyerAddress })) }} placeholder="Nazwa..." /></div>
-                  <div><Lbl>Produkt</Lbl><Sel value={arch.productCode} onChange={v => setArch(a => ({ ...a, productCode: v, lotPrefix: `${v}/${yearShort()}/` }))} options={PRODUCTS.map(p => ({ value: p.code, label: `${p.code} — ${p.name}` }))} /></div>
-                  <div><Lbl>Opakowanie</Lbl><Sel value={arch.packaging} onChange={v => sa('packaging', v)} options={PACKAGINGS.map(p => ({ value: p.value, label: p.label }))} /></div>
+                  <div><Lbl>Produkt</Lbl><Sel value={arch.productCode || (products[0]?.code || '')} onChange={v => sa('productCode', v)} options={products.map(p => ({ value: p.code, label: `${p.code} — ${p.name}` }))} /></div>
+                  <div><Lbl>Opakowanie</Lbl><Sel value={arch.packaging || (packagings[0]?.value || '')} onChange={v => sa('packaging', v)} options={packagings.map(p => ({ value: p.value, label: p.label }))} /></div>
                   <div><Lbl>Liczba palet</Lbl><Inp type="number" min="1" value={arch.pallets} onChange={v => sa('pallets', v)} /></div>
                   <div><Lbl>Prefiks LOT</Lbl><Inp value={arch.lotPrefix} onChange={v => sa('lotPrefix', v)} /></div>
                   <div><Lbl>Pierwszy nr seryjny LOT *</Lbl><Inp value={arch.lotSerial} onChange={v => sa('lotSerial', v.replace(/\D/g, ''))} placeholder="171" /></div>
                   <div><Lbl>Nr ciężarówki</Lbl><Inp value={arch.truckNumber} onChange={v => sa('truckNumber', v)} /></div>
                   <div><Lbl>Data załadunku</Lbl><Inp type="date" value={arch.dateLoading} onChange={v => sa('dateLoading', v)} /></div>
-                  <div><Lbl>Data wysłania (do archiwum)</Lbl><Inp type="date" value={arch.sentDate} onChange={v => sa('sentDate', v)} /></div>
+                  <div><Lbl>Data wysłania</Lbl><Inp type="date" value={arch.sentDate} onChange={v => sa('sentDate', v)} /></div>
                 </div>
                 {arch.lotSerial && (() => {
-                  const ap = PACKAGINGS.find(p => p.value === arch.packaging) || PACKAGINGS[0]
+                  const ap = packagings.find(p => p.value === arch.packaging) || packagings[0]
+                  if (!ap) return null
                   const lots = generateLots(arch.lotPrefix, arch.lotSerial, Number(arch.pallets), ap.bagKg * ap.bagsPerPallet)
                   return lots.length > 0 && (
                     <div style={{ background: 'var(--color-background-secondary)', borderRadius: 8, padding: '8px 12px', marginBottom: 10 }}>
@@ -491,23 +563,31 @@ export default function App() {
         {tab === 3 && (
           <div>
             <Sec label="Dodaj nowego klienta" style={{ marginBottom: 14 }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 10, alignItems: 'end' }}>
-                <div><Lbl>Nazwa firmy</Lbl><Inp value={newBuyerName} onChange={setNewBuyerName} placeholder="Nazwa klienta..." /></div>
-                <div><Lbl>Adres</Lbl><Inp value={newBuyerAddr} onChange={setNewBuyerAddr} placeholder="Adres..." /></div>
-                <button onClick={handleAddBuyer} style={{ padding: '8px 16px', background: '#185fa5', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap' }}>
-                  + Zapisz
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+                <div><Lbl>Nazwa firmy *</Lbl><Inp value={newBuyer.name} onChange={v => snb('name', v)} placeholder="Nazwa klienta..." /></div>
+                <div><Lbl>NIP</Lbl><Inp value={newBuyer.nip} onChange={v => snb('nip', v)} placeholder="000-000-00-00" /></div>
+                <div><Lbl>Adres siedziby</Lbl><Inp value={newBuyer.address} onChange={v => snb('address', v)} placeholder="ul. Przykładowa 1, 00-000 Miasto" /></div>
+                <div><Lbl>Adres dostawy</Lbl><Inp value={newBuyer.deliveryAddress} onChange={v => snb('deliveryAddress', v)} placeholder="ul. Magazynowa 5, 00-000 Miasto" /></div>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <button onClick={handleAddBuyer} style={{ padding: '8px 20px', background: '#185fa5', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 500 }}>
+                  + Zapisz klienta
                 </button>
               </div>
             </Sec>
             {loading ? <Spinner /> : buyers.length === 0
               ? <div style={{ textAlign: 'center', padding: '30px 0', fontSize: 13, color: 'var(--color-text-secondary)' }}>Brak klientów w bazie.</div>
               : buyers.map(b => (
-                <div key={b.id} style={{ background: 'var(--color-background-primary)', border: '0.5px solid var(--color-border-tertiary)', borderRadius: 10, padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 12, marginBottom: 7 }}>
+                <div key={b.id} style={{ background: 'var(--color-background-primary)', border: '0.5px solid var(--color-border-tertiary)', borderRadius: 10, padding: '12px 16px', display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 7 }}>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 500, fontSize: 14 }}>{b.name}</div>
-                    <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>{b.address}</div>
+                    <div style={{ fontWeight: 500, fontSize: 14, marginBottom: 4 }}>{b.name}</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2px 16px' }}>
+                      {b.nip && <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>NIP: {b.nip}</div>}
+                      {b.address && <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>Siedziba: {b.address}</div>}
+                      {b.delivery_address && <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>Dostawa: {b.delivery_address}</div>}
+                    </div>
                   </div>
-                  <button onClick={() => handleDeleteBuyer(b.id)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#a32d2d', fontSize: 13 }}>Usuń</button>
+                  <button onClick={() => handleDeleteBuyer(b.id)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#a32d2d', fontSize: 13, flexShrink: 0 }}>Usuń</button>
                 </div>
               ))
             }
@@ -517,46 +597,74 @@ export default function App() {
         {/* ── TAB 4: PRODUKTY ── */}
         {tab === 4 && (
           <div>
-            <Sec label="Lista produktów">
-              <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginBottom: 12 }}>
-                Produkty dostępne przy tworzeniu certyfikatów.
+            <Sec label="Dodaj nowy produkt" style={{ marginBottom: 14 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr 1fr', gap: 10, marginBottom: 10 }}>
+                <div><Lbl>Kod produktu *</Lbl><Inp value={newProd.code} onChange={v => snp('code', v)} placeholder="4.1/P" /></div>
+                <div><Lbl>Nazwa EN *</Lbl><Inp value={newProd.nameEn} onChange={v => snp('nameEn', v)} placeholder="Dried Potato Powder" /></div>
+                <div><Lbl>Nazwa PL *</Lbl><Inp value={newProd.namePl} onChange={v => snp('namePl', v)} placeholder="Suszone Puree Ziemniaczane" /></div>
               </div>
-              {PRODUCTS.map(p => (
-                <div key={p.code} style={{ background: 'var(--color-background-primary)', border: '0.5px solid var(--color-border-tertiary)', borderRadius: 10, padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 16, marginBottom: 7 }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <button onClick={handleAddProduct} style={{ padding: '8px 20px', background: '#0f6e56', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 500 }}>
+                  + Zapisz produkt
+                </button>
+              </div>
+            </Sec>
+            {loading ? <Spinner /> : products.length === 0
+              ? <div style={{ textAlign: 'center', padding: '30px 0', fontSize: 13, color: 'var(--color-text-secondary)' }}>Brak produktów.</div>
+              : products.map(p => (
+                <div key={p.id} style={{ background: 'var(--color-background-primary)', border: '0.5px solid var(--color-border-tertiary)', borderRadius: 10, padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 16, marginBottom: 7 }}>
                   <div style={{ background: '#e1f5ee', color: '#085041', fontWeight: 500, fontSize: 13, padding: '4px 12px', borderRadius: 8, whiteSpace: 'nowrap' }}>{p.code}</div>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontWeight: 500, fontSize: 14 }}>{p.name}</div>
                     <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>{p.namePL}</div>
                   </div>
+                  <button onClick={() => handleDeleteProduct(p.id)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#a32d2d', fontSize: 13 }}>Usuń</button>
                 </div>
-              ))}
-            </Sec>
+              ))
+            }
           </div>
         )}
 
         {/* ── TAB 5: OPAKOWANIA ── */}
         {tab === 5 && (
           <div>
-            <Sec label="Lista opakowań">
-              <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginBottom: 12 }}>
-                Parametry opakowań używane do obliczeń wagi i generowania dokumentów.
+            <Sec label="Dodaj nowe opakowanie" style={{ marginBottom: 14 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 120px 120px', gap: 10, marginBottom: 10 }}>
+                <div><Lbl>Nazwa PL *</Lbl><Inp value={newPack.namePl} onChange={v => snk('namePl', v)} placeholder="Worek papierowy 25kg" /></div>
+                <div><Lbl>Nazwa EN *</Lbl><Inp value={newPack.nameEn} onChange={v => snk('nameEn', v)} placeholder="Papper Bag 25kg" /></div>
+                <div><Lbl>Waga szt. (kg) *</Lbl><Inp type="number" min="1" value={newPack.bagKg} onChange={v => snk('bagKg', v)} placeholder="25" /></div>
+                <div><Lbl>Szt./paleta *</Lbl><Inp type="number" min="1" value={newPack.bagsPerPallet} onChange={v => snk('bagsPerPallet', v)} placeholder="40" /></div>
               </div>
-              {PACKAGINGS.map(p => (
-                <div key={p.value} style={{ background: 'var(--color-background-primary)', border: '0.5px solid var(--color-border-tertiary)', borderRadius: 10, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 16, marginBottom: 7 }}>
+              {newPack.bagKg && newPack.bagsPerPallet && (
+                <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginBottom: 10 }}>
+                  → {(Number(newPack.bagKg) * Number(newPack.bagsPerPallet)).toLocaleString()} kg / paleta
+                </div>
+              )}
+              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <button onClick={handleAddPackaging} style={{ padding: '8px 20px', background: '#185fa5', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 500 }}>
+                  + Zapisz opakowanie
+                </button>
+              </div>
+            </Sec>
+            {loading ? <Spinner /> : packagings.length === 0
+              ? <div style={{ textAlign: 'center', padding: '30px 0', fontSize: 13, color: 'var(--color-text-secondary)' }}>Brak opakowań.</div>
+              : packagings.map(p => (
+                <div key={p.id} style={{ background: 'var(--color-background-primary)', border: '0.5px solid var(--color-border-tertiary)', borderRadius: 10, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 16, marginBottom: 7 }}>
                   <div style={{ background: '#e6f1fb', color: '#042c53', fontWeight: 500, fontSize: 13, padding: '4px 12px', borderRadius: 8, whiteSpace: 'nowrap' }}>{p.label}</div>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 500, fontSize: 14 }}>{p.value}</div>
+                    <div style={{ fontWeight: 500, fontSize: 14 }}>{p.labelPL}</div>
                     <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>
                       {p.bagKg} kg/szt · {p.bagsPerPallet} szt/paleta · <strong>{(p.bagKg * p.bagsPerPallet).toLocaleString()} kg/paleta</strong>
                     </div>
                   </div>
-                  <div style={{ textAlign: 'right' }}>
+                  <div style={{ textAlign: 'right', marginRight: 12 }}>
                     <div style={{ fontSize: 22, fontWeight: 500 }}>{(p.bagKg * p.bagsPerPallet).toLocaleString()}</div>
                     <div style={{ fontSize: 11, color: 'var(--color-text-secondary)' }}>kg / paleta</div>
                   </div>
+                  <button onClick={() => handleDeletePackaging(p.id)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#a32d2d', fontSize: 13 }}>Usuń</button>
                 </div>
-              ))}
-            </Sec>
+              ))
+            }
           </div>
         )}
 
