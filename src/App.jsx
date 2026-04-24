@@ -7,7 +7,7 @@ import {
   fetchPackagings, savePackaging, deletePackaging,
 } from './lib/supabase.js'
 import { today, fmtD, addYear, yearShort, generateLots } from './lib/constants.js'
-import { Inp, Sel, Lbl, Sec, Toggle, Combo, LotGrid, CertRow, Spinner, ErrorBanner } from './components/UI.jsx'
+import { Inp, Sel, Lbl, Sec, Toggle, BuyerCombo, LotGrid, CertRow, Spinner, ErrorBanner } from './components/UI.jsx'
 import Preview from './components/Preview.jsx'
 
 export default function App() {
@@ -62,7 +62,6 @@ export default function App() {
     truckNumber: '', origin: 'Poland',
   })
 
-  // Sync defaults when products/packagings load
   useEffect(() => {
     if (products.length && !f.productCode) {
       const p = products[0]
@@ -99,14 +98,9 @@ export default function App() {
     setF(p => ({ ...p, productCode: code, lotPrefix: `${code}/${yearShort()}/` }))
   }
 
-  function onBuyerSelect(name) {
-    const b = buyers.find(b => b.name === name)
-    setF(p => ({ ...p, buyerName: name, buyerAddress: b?.address || p.buyerAddress }))
-  }
-
   const formErrors = useMemo(() => {
     const e = []
-    if (!f.buyerName.trim()) e.push('Podaj nazwę nabywcy')
+    if (!f.buyerName.trim()) e.push('Wybierz lub wpisz nabywcę')
     if (!f.manualLots && !f.lotSerial.trim()) e.push('Podaj numer seryjny pierwszej partii LOT (np. 171)')
     if (f.manualLots && f.customLots.some(l => !l.lot.trim())) e.push('Uzupełnij wszystkie numery partii')
     if (!f.truckNumber.trim()) e.push('Podaj numer ciężarówki')
@@ -242,8 +236,7 @@ export default function App() {
   const [archOpen, setArchOpen] = useState(false)
   const [arch, setArch] = useState({
     certNumber: '', buyerName: '', buyerAddress: '', productCode: '',
-    packaging: '', pallets: 2,
-    lotPrefix: '', lotSerial: '',
+    packaging: '', pallets: 2, lotPrefix: '', lotSerial: '',
     dateLoading: today(), dateProduction: '', truckNumber: '', sentDate: today(),
   })
   function sa(k, v) { setArch(p => ({ ...p, [k]: v })) }
@@ -292,7 +285,7 @@ export default function App() {
     <Preview doc={preview} onSave={handleSave} onBack={() => setPreview(null)} saving={saving} />
   )
 
-  const tabStyle = (i) => ({
+  const tabStyle = i => ({
     padding: '7px 14px', border: 'none', background: 'transparent', cursor: 'pointer',
     fontSize: 13, fontWeight: tab === i ? 500 : 400,
     color: tab === i ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
@@ -331,6 +324,7 @@ export default function App() {
         {/* ── TAB 0: NOWY DOKUMENT ── */}
         {tab === 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <Sec label="Typ dokumentu">
                 <Toggle options={[['both', 'QC + Packing List'], ['qc', 'Quality Certificate'], ['pl', 'Packing List']]} value={docType} onChange={setDocType} />
@@ -341,15 +335,26 @@ export default function App() {
             </div>
 
             <Sec label="Nabywca">
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                <div>
-                  <Lbl>Firma <span style={{ fontSize: 10, color: 'var(--color-text-secondary)' }}>(wybierz lub wpisz nową)</span></Lbl>
-                  <Combo value={f.buyerName} options={buyers.map(b => b.name)} onChange={onBuyerSelect} placeholder="Nazwa nabywcy..." />
-                </div>
-                <div>
-                  <Lbl>Adres <span style={{ fontSize: 10, color: 'var(--color-text-secondary)' }}>(auto po wyborze)</span></Lbl>
-                  <Inp value={f.buyerAddress} onChange={v => sf('buyerAddress', v)} placeholder="Adres..." />
-                </div>
+              <Lbl>Wybierz klienta z bazy <span style={{ fontSize: 10, color: 'var(--color-text-secondary)' }}>(lub wpisz nazwę ręcznie poniżej)</span></Lbl>
+              <BuyerCombo
+                value={f.buyerName}
+                buyers={buyers}
+                onSelect={b => {
+                  if (b) {
+                    setF(p => ({
+                      ...p,
+                      buyerName: b.name,
+                      buyerAddress: b.delivery_address || b.address || '',
+                    }))
+                  } else {
+                    setF(p => ({ ...p, buyerName: '', buyerAddress: '' }))
+                  }
+                }}
+                placeholder="Wybierz klienta z bazy..."
+              />
+              <div style={{ marginTop: 8 }}>
+                <Lbl>Adres na dokumencie <span style={{ fontSize: 10, color: 'var(--color-text-secondary)' }}>(auto-uzupełniony, możesz edytować)</span></Lbl>
+                <Inp value={f.buyerAddress} onChange={v => sf('buyerAddress', v)} placeholder="Adres widoczny na certyfikacie..." />
               </div>
             </Sec>
 
@@ -416,7 +421,7 @@ export default function App() {
                     <span style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>Tryb ręczny · {f.customLots.length} partii</span>
                     <div style={{ display: 'flex', gap: 8 }}>
                       <button onClick={() => setF(p => ({ ...p, manualLots: false }))} style={{ padding: '4px 10px', border: '0.5px solid var(--color-border-tertiary)', borderRadius: 6, background: 'transparent', cursor: 'pointer', fontSize: 12, color: 'var(--color-text-secondary)' }}>← Automatyczny</button>
-                      <button onClick={() => setF(p => ({ ...p, customLots: [...p.customLots, { lot: p.lotPrefix, qty: kgPerLot }] }))} style={{ padding: '4px 10px', border: '0.5px solid var(--color-border-tertiary)', borderRadius: 6, background: 'transparent', cursor: 'pointer', fontSize: 12, color: 'var(--color-text-secondary)' }}>+ Partia</button>
+                      <button onClick={() => setF(p => ({ ...p, customLots: [...p.customLots, { lot: f.lotPrefix, qty: kgPerLot }] }))} style={{ padding: '4px 10px', border: '0.5px solid var(--color-border-tertiary)', borderRadius: 6, background: 'transparent', cursor: 'pointer', fontSize: 12, color: 'var(--color-text-secondary)' }}>+ Partia</button>
                     </div>
                   </div>
                   {f.customLots.map((lot, i) => (
@@ -519,7 +524,18 @@ export default function App() {
               <Sec label="Dodaj certyfikat archiwalny" style={{ marginBottom: 14 }}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
                   <div><Lbl>Nr certyfikatu *</Lbl><Inp value={arch.certNumber} onChange={v => sa('certNumber', v)} placeholder="94/2026/EN" /></div>
-                  <div><Lbl>Nabywca *</Lbl><Combo value={arch.buyerName} options={buyers.map(b => b.name)} onChange={name => { const b = buyers.find(b => b.name === name); setArch(a => ({ ...a, buyerName: name, buyerAddress: b?.address || a.buyerAddress })) }} placeholder="Nazwa..." /></div>
+                  <div>
+                    <Lbl>Nabywca *</Lbl>
+                    <BuyerCombo
+                      value={arch.buyerName}
+                      buyers={buyers}
+                      onSelect={b => {
+                        if (b) setArch(a => ({ ...a, buyerName: b.name, buyerAddress: b.delivery_address || b.address || '' }))
+                        else setArch(a => ({ ...a, buyerName: '', buyerAddress: '' }))
+                      }}
+                      placeholder="Wybierz nabywcę..."
+                    />
+                  </div>
                   <div><Lbl>Produkt</Lbl><Sel value={arch.productCode || (products[0]?.code || '')} onChange={v => sa('productCode', v)} options={products.map(p => ({ value: p.code, label: `${p.code} — ${p.name}` }))} /></div>
                   <div><Lbl>Opakowanie</Lbl><Sel value={arch.packaging || (packagings[0]?.value || '')} onChange={v => sa('packaging', v)} options={packagings.map(p => ({ value: p.value, label: p.label }))} /></div>
                   <div><Lbl>Liczba palet</Lbl><Inp type="number" min="1" value={arch.pallets} onChange={v => sa('pallets', v)} /></div>
@@ -582,9 +598,9 @@ export default function App() {
                   <div style={{ flex: 1 }}>
                     <div style={{ fontWeight: 500, fontSize: 14, marginBottom: 4 }}>{b.name}</div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2px 16px' }}>
-                      {b.nip && <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>NIP: {b.nip}</div>}
-                      {b.address && <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>Siedziba: {b.address}</div>}
-                      {b.delivery_address && <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>Dostawa: {b.delivery_address}</div>}
+                      {b.nip && <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>🏷 NIP: {b.nip}</div>}
+                      {b.address && <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>📍 Siedziba: {b.address}</div>}
+                      {b.delivery_address && <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>🚚 Dostawa: {b.delivery_address}</div>}
                     </div>
                   </div>
                   <button onClick={() => handleDeleteBuyer(b.id)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#a32d2d', fontSize: 13, flexShrink: 0 }}>Usuń</button>
