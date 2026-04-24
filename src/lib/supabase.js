@@ -16,75 +16,64 @@ export async function fetchCertificates(filters = {}) {
     .from('certificates')
     .select('*')
     .order('created_at', { ascending: false })
-
-  if (filters.buyer) q = q.ilike('buyer', `%${filters.buyer}%`)
+  if (filters.buyer)       q = q.ilike('buyer', `%${filters.buyer}%`)
   if (filters.productCode) q = q.eq('product_code', filters.productCode)
-  if (filters.status) q = q.eq('status', filters.status)
-
+  if (filters.status)      q = q.eq('status', filters.status)
   const { data, error } = await q
   if (error) throw error
   return data.map(dbToApp)
 }
 
 export async function saveCertificate(doc) {
-  // Get next cert number atomically from DB
-  const { data: numData, error: numErr } = await supabase
+  const { data: certNum, error: numErr } = await supabase
     .rpc('get_next_cert_number', { p_year: new Date().getFullYear() })
   if (numErr) throw numErr
-
-  const certNumber = numData
-  const row = appToDb({ ...doc, certNumber })
-
+  const row = appToDb({ ...doc, certNumber: certNum })
   const { data, error } = await supabase
-    .from('certificates')
-    .insert(row)
-    .select()
-    .single()
-
+    .from('certificates').insert(row).select().single()
   if (error) throw error
   return dbToApp(data)
 }
 
 export async function updateCertificateStatus(id, status, extraFields = {}) {
   const { data, error } = await supabase
-    .from('certificates')
-    .update({ status, ...extraFields })
-    .eq('id', id)
-    .select()
-    .single()
-
+    .from('certificates').update({ status, ...extraFields })
+    .eq('id', id).select().single()
   if (error) throw error
   return dbToApp(data)
 }
 
 export async function deleteCertificate(id) {
-  const { error } = await supabase
-    .from('certificates')
-    .delete()
-    .eq('id', id)
-
+  const { error } = await supabase.from('certificates').delete().eq('id', id)
   if (error) throw error
+}
+
+export async function archiveCertificate(doc) {
+  const row = appToDb(doc)
+  const { data, error } = await supabase
+    .from('certificates').insert({ ...row, status: 'archived' }).select().single()
+  if (error) throw error
+  return dbToApp(data)
 }
 
 // ─── Buyers ───────────────────────────────────────────────────────────────────
 
 export async function fetchBuyers() {
   const { data, error } = await supabase
-    .from('buyers')
-    .select('*')
-    .order('name')
-
+    .from('buyers').select('*').order('name')
   if (error) throw error
   return data
 }
 
-export async function saveBuyer(name, address) {
+export async function saveBuyer(buyer) {
+  const row = {
+    name:             buyer.name,
+    address:          buyer.address || '',
+    nip:              buyer.nip || '',
+    delivery_address: buyer.deliveryAddress || '',
+  }
   const { data, error } = await supabase
-    .from('buyers')
-    .upsert({ name, address }, { onConflict: 'name' })
-    .select()
-    .single()
-
+    .from('buyers').upsert(row, { onConflict: 'name' }).select().single()
   if (error) throw error
   return data
 }
@@ -94,35 +83,76 @@ export async function deleteBuyer(id) {
   if (error) throw error
 }
 
-// ─── Counter (preview only — actual number comes from DB function) ─────────────
+// ─── Products ─────────────────────────────────────────────────────────────────
+
+export async function fetchProducts() {
+  const { data, error } = await supabase
+    .from('products').select('*').order('code')
+  if (error) throw error
+  return data.map(r => ({
+    id: r.id, code: r.code, name: r.name_en, namePL: r.name_pl,
+  }))
+}
+
+export async function saveProduct(code, nameEn, namePl) {
+  const { data, error } = await supabase
+    .from('products')
+    .upsert({ code, name_en: nameEn, name_pl: namePl }, { onConflict: 'code' })
+    .select().single()
+  if (error) throw error
+  return { id: data.id, code: data.code, name: data.name_en, namePL: data.name_pl }
+}
+
+export async function deleteProduct(id) {
+  const { error } = await supabase.from('products').delete().eq('id', id)
+  if (error) throw error
+}
+
+// ─── Packagings ───────────────────────────────────────────────────────────────
+
+export async function fetchPackagings() {
+  const { data, error } = await supabase
+    .from('packagings').select('*').order('bag_kg')
+  if (error) throw error
+  return data.map(r => ({
+    id:            r.id,
+    label:         r.name_en,
+    labelPL:       r.name_pl,
+    value:         r.name_en.toUpperCase(),
+    bagKg:         Number(r.bag_kg),
+    bagsPerPallet: r.bags_per_pallet,
+  }))
+}
+
+export async function savePackaging(namePl, nameEn, bagKg, bagsPerPallet) {
+  const { data, error } = await supabase
+    .from('packagings')
+    .insert({ name_pl: namePl, name_en: nameEn, bag_kg: bagKg, bags_per_pallet: bagsPerPallet })
+    .select().single()
+  if (error) throw error
+  return {
+    id: data.id, label: data.name_en, labelPL: data.name_pl,
+    value: data.name_en.toUpperCase(),
+    bagKg: Number(data.bag_kg), bagsPerPallet: data.bags_per_pallet,
+  }
+}
+
+export async function deletePackaging(id) {
+  const { error } = await supabase.from('packagings').delete().eq('id', id)
+  if (error) throw error
+}
+
+// ─── Counter ──────────────────────────────────────────────────────────────────
 
 export async function fetchCurrentCounter() {
   const year = new Date().getFullYear()
   const { data, error } = await supabase
-    .from('cert_counter')
-    .select('counter')
-    .eq('year', year)
-    .single()
-
+    .from('cert_counter').select('counter').eq('year', year).single()
   if (error) return 1
   return data.counter
 }
 
-// ─── Archive import (cert already exists, no new number needed) ────────────────
-
-export async function archiveCertificate(doc) {
-  const row = appToDb(doc)
-  const { data, error } = await supabase
-    .from('certificates')
-    .insert({ ...row, status: 'archived' })
-    .select()
-    .single()
-
-  if (error) throw error
-  return dbToApp(data)
-}
-
-// ─── Mapping helpers ──────────────────────────────────────────────────────────
+// ─── Mapping ──────────────────────────────────────────────────────────────────
 
 function appToDb(doc) {
   return {
