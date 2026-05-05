@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import {
   fetchCertificates, saveCertificate, updateCertificateStatus,
   deleteCertificate, fetchBuyers, saveBuyer, deleteBuyer, updateBuyer,
@@ -11,6 +11,19 @@ import { Inp, Sel, Lbl, Sec, Toggle, BuyerCombo, LotGrid, CertRow, Spinner, Erro
 import Preview from './components/Preview.jsx'
 
 export default function App() {
+  const headerRef = useRef(null)
+  const [headerHeight, setHeaderHeight] = useState(90)
+
+  useEffect(() => {
+    if (!headerRef.current) return
+    const obs = new ResizeObserver(() => {
+      setHeaderHeight(headerRef.current?.offsetHeight || 90)
+    })
+    obs.observe(headerRef.current)
+    setHeaderHeight(headerRef.current.offsetHeight)
+    return () => obs.disconnect()
+  }, [])
+
   const [tab, setTab] = useState(0)
   const [certs, setCerts] = useState([])
   const [buyers, setBuyers] = useState([])
@@ -26,7 +39,6 @@ export default function App() {
   const [filterStatus, setFilterStatus] = useState('')
   const [filterBuyer, setFilterBuyer] = useState('')
   const [filterProduct, setFilterProduct] = useState('')
-
   const [packFilter, setPackFilter] = useState('')
   const [packSort, setPackSort] = useState('name')
 
@@ -44,7 +56,6 @@ export default function App() {
 
   useEffect(() => { loadAll() }, [])
 
-  // ── Form ──
   const [lang, setLang] = useState('EN')
   const [docType, setDocType] = useState('both')
   const [f, setF] = useState({
@@ -143,7 +154,6 @@ export default function App() {
     catch (e) { setError('Błąd: ' + e.message) }
   }
 
-  // ── Buyers ──
   const [newBuyer, setNewBuyer] = useState({ name: '', address: '', nip: '', deliveryAddress: '' })
   const [editBuyer, setEditBuyer] = useState(null)
   function snb(k, v) { setNewBuyer(p => ({ ...p, [k]: v })) }
@@ -176,7 +186,6 @@ export default function App() {
     catch (e) { setError('Błąd: ' + e.message) }
   }
 
-  // ── Products ──
   const [newProd, setNewProd] = useState({ code: '', nameEn: '', namePl: '' })
   const [editProd, setEditProd] = useState(null)
   function snp(k, v) { setNewProd(p => ({ ...p, [k]: v })) }
@@ -208,7 +217,6 @@ export default function App() {
     catch (e) { setError('Błąd: ' + e.message) }
   }
 
-  // ── Packagings ──
   const [newPack, setNewPack] = useState({ namePl: '', nameEn: '', bagKg: '', bagsPerPallet: '', buyerId: '' })
   const [editPack, setEditPack] = useState(null)
   function snk(k, v) { setNewPack(p => ({ ...p, [k]: v })) }
@@ -240,7 +248,6 @@ export default function App() {
     catch (e) { setError('Błąd: ' + e.message) }
   }
 
-  // ── Archive ──
   const [archOpen, setArchOpen] = useState(false)
   const [arch, setArch] = useState({
     certNumber: '', buyerName: '', buyerAddress: '', productCode: '',
@@ -280,7 +287,6 @@ export default function App() {
     finally { setSaving(false) }
   }
 
-  // ── Filtered certs ──
   const filteredCerts = certs.filter(c =>
     (!filterCertNum || c.certNumber?.toLowerCase().includes(filterCertNum.toLowerCase())) &&
     (!filterStatus || c.status === filterStatus) &&
@@ -288,7 +294,6 @@ export default function App() {
     (!filterProduct || c.productCode === filterProduct)
   )
 
-  // ── Filtered & sorted packagings ──
   const filteredPackagings = useMemo(() => {
     let list = [...packagings]
     if (packFilter) {
@@ -327,38 +332,45 @@ export default function App() {
   }
 
   return (
-    <div style={{ fontFamily: "'Segoe UI', system-ui, sans-serif", maxWidth: 900, margin: '0 auto', paddingBottom: 40 }}>
+    <div style={{ fontFamily: "'Segoe UI', system-ui, sans-serif", maxWidth: 900, margin: '0 auto' }}>
 
-      {/* ── HEADER ── */}
-      <div style={{
-        borderBottom: '0.5px solid var(--color-border-tertiary)',
-        padding: '14px 20px 0',
-        background: 'var(--color-background-primary)',
-        position: 'sticky', top: 0, zIndex: 100,
-        boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
-      }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-          <div>
-            <div style={{ fontSize: 18, fontWeight: 500, letterSpacing: 1 }}>🌿 ECOCORN</div>
-            <div style={{ fontSize: 11, color: 'var(--color-text-secondary)' }}>System certyfikatów jakości · Eco-corn Sp. z o.o.</div>
+      {/* ── HEADER — sticky, mierzona wysokość ── */}
+      <div
+        ref={headerRef}
+        style={{
+          position: 'fixed',
+          top: 0, left: 0, right: 0,
+          zIndex: 100,
+          background: 'var(--color-background-primary)',
+          borderBottom: '1px solid var(--color-border-tertiary)',
+          boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
+        }}
+      >
+        {/* Ograniczenie szerokości do 900px jak content */}
+        <div style={{ maxWidth: 900, margin: '0 auto', padding: '14px 20px 0' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+            <div>
+              <div style={{ fontSize: 18, fontWeight: 500, letterSpacing: 1 }}>🌿 ECOCORN</div>
+              <div style={{ fontSize: 11, color: 'var(--color-text-secondary)' }}>System certyfikatów jakości · Eco-corn Sp. z o.o.</div>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: 11, color: 'var(--color-text-secondary)' }}>Następny nr certyfikatu</div>
+              <div style={{ fontSize: 16, fontWeight: 500 }}>{nextCounter}/2026/EN</div>
+            </div>
           </div>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: 11, color: 'var(--color-text-secondary)' }}>Następny nr certyfikatu</div>
-            <div style={{ fontSize: 16, fontWeight: 500 }}>{nextCounter}/2026/EN</div>
+          <div style={{ display: 'flex', overflowX: 'auto' }}>
+            {['Nowy dokument', 'Baza certyfikatów', 'Archiwum', 'Klienci', 'Produkty', 'Opakowania'].map((t, i) => (
+              <button key={t} onClick={() => setTab(i)} style={tabStyle(i)}>{t}</button>
+            ))}
+            <button onClick={loadAll} style={{ marginLeft: 'auto', padding: '4px 10px', border: '0.5px solid var(--color-border-tertiary)', borderRadius: 7, background: 'transparent', cursor: 'pointer', fontSize: 12, color: 'var(--color-text-secondary)', whiteSpace: 'nowrap' }}>
+              ↺ Odśwież
+            </button>
           </div>
-        </div>
-        <div style={{ display: 'flex', overflowX: 'auto' }}>
-          {['Nowy dokument', 'Baza certyfikatów', 'Archiwum', 'Klienci', 'Produkty', 'Opakowania'].map((t, i) => (
-            <button key={t} onClick={() => setTab(i)} style={tabStyle(i)}>{t}</button>
-          ))}
-          <button onClick={loadAll} style={{ marginLeft: 'auto', padding: '4px 10px', border: '0.5px solid var(--color-border-tertiary)', borderRadius: 7, background: 'transparent', cursor: 'pointer', fontSize: 12, color: 'var(--color-text-secondary)', whiteSpace: 'nowrap' }}>
-            ↺ Odśwież
-          </button>
         </div>
       </div>
 
-      {/* ── CONTENT ── */}
-      <div style={{ padding: '18px 20px 40px' }}>
+      {/* ── CONTENT — padding-top równy dokładnej wysokości headera ── */}
+      <div style={{ paddingTop: headerHeight + 18, padding: `${headerHeight + 18}px 20px 60px` }}>
         <ErrorBanner message={error} onDismiss={() => setError(null)} />
 
         {/* ── TAB 0: NOWY DOKUMENT ── */}
