@@ -1,10 +1,10 @@
 import { useState, useEffect, useMemo } from 'react'
 import {
   fetchCertificates, saveCertificate, updateCertificateStatus,
-  deleteCertificate, fetchBuyers, saveBuyer, deleteBuyer,
+  deleteCertificate, fetchBuyers, saveBuyer, deleteBuyer, updateBuyer,
   fetchCurrentCounter, archiveCertificate,
-  fetchProducts, saveProduct, deleteProduct,
-  fetchPackagings, savePackaging, deletePackaging,
+  fetchProducts, saveProduct, deleteProduct, updateProduct,
+  fetchPackagings, savePackaging, deletePackaging, updatePackaging,
 } from './lib/supabase.js'
 import { today, fmtD, addYear, yearShort, generateLots } from './lib/constants.js'
 import { Inp, Sel, Lbl, Sec, Toggle, BuyerCombo, LotGrid, CertRow, Spinner, ErrorBanner } from './components/UI.jsx'
@@ -21,42 +21,33 @@ export default function App() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
   const [preview, setPreview] = useState(null)
+
+  const [filterCertNum, setFilterCertNum] = useState('')
+  const [filterStatus, setFilterStatus] = useState('')
   const [filterBuyer, setFilterBuyer] = useState('')
   const [filterProduct, setFilterProduct] = useState('')
 
   async function loadAll() {
-    setLoading(true)
-    setError(null)
+    setLoading(true); setError(null)
     try {
       const [certsData, buyersData, prodsData, packsData, counter] = await Promise.all([
-        fetchCertificates(),
-        fetchBuyers(),
-        fetchProducts(),
-        fetchPackagings(),
-        fetchCurrentCounter(),
+        fetchCertificates(), fetchBuyers(), fetchProducts(), fetchPackagings(), fetchCurrentCounter(),
       ])
-      setCerts(certsData)
-      setBuyers(buyersData)
-      setProducts(prodsData)
-      setPackagings(packsData)
-      setNextCounter(counter)
-    } catch (e) {
-      setError('Błąd połączenia z bazą danych: ' + e.message)
-    } finally {
-      setLoading(false)
-    }
+      setCerts(certsData); setBuyers(buyersData); setProducts(prodsData)
+      setPackagings(packsData); setNextCounter(counter)
+    } catch (e) { setError('Błąd połączenia: ' + e.message) }
+    finally { setLoading(false) }
   }
 
   useEffect(() => { loadAll() }, [])
 
-  // ── Form state ──
+  // ── Form ──
   const [lang, setLang] = useState('EN')
   const [docType, setDocType] = useState('both')
   const [f, setF] = useState({
-    buyerName: '', buyerAddress: '',
+    buyerName: '', buyerAddress: '', buyerId: null,
     productCode: '', packaging: '',
-    pallets: 9,
-    lotPrefix: '', lotSerial: '',
+    pallets: 9, lotPrefix: '', lotSerial: '',
     manualLots: false, customLots: [],
     dateLoading: today(), dateProduction: '',
     truckNumber: '', origin: 'Poland',
@@ -75,7 +66,13 @@ export default function App() {
     }
   }, [packagings])
 
-  const packInfo = packagings.find(p => p.value === f.packaging) || packagings[0]
+  // When buyer changes, filter packagings relevant to them
+  const availablePackagings = useMemo(() => {
+    if (!f.buyerId) return packagings.filter(p => !p.buyerId)
+    return packagings.filter(p => !p.buyerId || p.buyerId === f.buyerId)
+  }, [packagings, f.buyerId])
+
+  const packInfo = availablePackagings.find(p => p.value === f.packaging) || availablePackagings[0]
   const product = products.find(p => p.code === f.productCode) || products[0]
   const kgPerLot = packInfo ? packInfo.bagKg * packInfo.bagsPerPallet : 0
   const numPallets = Math.max(1, Math.min(34, Number(f.pallets) || 1))
@@ -93,10 +90,7 @@ export default function App() {
   const activeLots = f.manualLots ? f.customLots : autoLots
 
   function sf(k, v) { setF(p => ({ ...p, [k]: v })) }
-
-  function onProductChange(code) {
-    setF(p => ({ ...p, productCode: code, lotPrefix: `${code}/${yearShort()}/` }))
-  }
+  function onProductChange(code) { setF(p => ({ ...p, productCode: code, lotPrefix: `${code}/${yearShort()}/` })) }
 
   const formErrors = useMemo(() => {
     const e = []
@@ -108,7 +102,7 @@ export default function App() {
   }, [f])
 
   function openPreview() {
-    const doc = {
+    setPreview({
       buyer: f.buyerName, buyerAddress: f.buyerAddress,
       productCode: f.productCode, productName: product?.name || '',
       dateLoading: f.dateLoading, dateProduction: dateProd, bestBefore,
@@ -116,30 +110,22 @@ export default function App() {
       origin: f.origin, truckNumber: f.truckNumber,
       lots: activeLots, totalKg, grossKg, pallets: numPallets, kgPerLot,
       lang, docType, status: 'saved',
-    }
-    setPreview(doc)
+    })
   }
 
   async function handleSave(doc) {
-    setSaving(true)
-    setError(null)
+    setSaving(true); setError(null)
     try {
-      if (doc.buyer && !buyers.find(b => b.name === doc.buyer)) {
+      if (doc.buyer && !buyers.find(b => b.name === doc.buyer))
         await saveBuyer({ name: doc.buyer, address: doc.buyerAddress || '' })
-      }
       const saved = await saveCertificate(doc)
       setCerts(c => [saved, ...c])
-      setNextCounter(n => (typeof n === 'number' ? n + 1 : n))
-      setPreview(null)
-      setTab(1)
+      setNextCounter(n => typeof n === 'number' ? n + 1 : n)
+      setPreview(null); setTab(1)
       setF(p => ({ ...p, lotSerial: '', truckNumber: '', dateProduction: '', pallets: 9, manualLots: false, customLots: [] }))
-      const fresh = await fetchBuyers()
-      setBuyers(fresh)
-    } catch (e) {
-      setError('Błąd zapisu: ' + e.message)
-    } finally {
-      setSaving(false)
-    }
+      setBuyers(await fetchBuyers())
+    } catch (e) { setError('Błąd zapisu: ' + e.message) }
+    finally { setSaving(false) }
   }
 
   async function handleMarkSent(id) {
@@ -151,85 +137,105 @@ export default function App() {
 
   async function handleDelete(id) {
     if (!window.confirm('Usunąć certyfikat?')) return
-    try {
-      await deleteCertificate(id)
-      setCerts(c => c.filter(x => x.id !== id))
-    } catch (e) { setError('Błąd: ' + e.message) }
+    try { await deleteCertificate(id); setCerts(c => c.filter(x => x.id !== id)) }
+    catch (e) { setError('Błąd: ' + e.message) }
   }
 
   // ── Buyers ──
   const [newBuyer, setNewBuyer] = useState({ name: '', address: '', nip: '', deliveryAddress: '' })
+  const [editBuyer, setEditBuyer] = useState(null)
   function snb(k, v) { setNewBuyer(p => ({ ...p, [k]: v })) }
+  function seb(k, v) { setEditBuyer(p => ({ ...p, [k]: v })) }
 
   async function handleAddBuyer() {
     if (!newBuyer.name.trim()) return
     try {
       const b = await saveBuyer(newBuyer)
-      setBuyers(prev => {
-        const exists = prev.find(x => x.id === b.id)
-        return exists ? prev.map(x => x.id === b.id ? b : x) : [...prev, b]
-      })
+      setBuyers(prev => [...prev.filter(x => x.name !== b.name), b].sort((a, b) => a.name.localeCompare(b.name)))
       setNewBuyer({ name: '', address: '', nip: '', deliveryAddress: '' })
     } catch (e) { setError('Błąd zapisu klienta: ' + e.message) }
   }
 
+  async function handleUpdateBuyer() {
+    if (!editBuyer?.name?.trim()) return
+    try {
+      const b = await updateBuyer(editBuyer.id, {
+        name: editBuyer.name, address: editBuyer.address,
+        nip: editBuyer.nip, deliveryAddress: editBuyer.delivery_address,
+      })
+      setBuyers(prev => prev.map(x => x.id === b.id ? b : x))
+      setEditBuyer(null)
+    } catch (e) { setError('Błąd edycji klienta: ' + e.message) }
+  }
+
   async function handleDeleteBuyer(id) {
     if (!window.confirm('Usunąć klienta?')) return
-    try {
-      await deleteBuyer(id)
-      setBuyers(b => b.filter(x => x.id !== id))
-    } catch (e) { setError('Błąd: ' + e.message) }
+    try { await deleteBuyer(id); setBuyers(b => b.filter(x => x.id !== id)) }
+    catch (e) { setError('Błąd: ' + e.message) }
   }
 
   // ── Products ──
   const [newProd, setNewProd] = useState({ code: '', nameEn: '', namePl: '' })
+  const [editProd, setEditProd] = useState(null)
   function snp(k, v) { setNewProd(p => ({ ...p, [k]: v })) }
+  function sep(k, v) { setEditProd(p => ({ ...p, [k]: v })) }
 
   async function handleAddProduct() {
     if (!newProd.code.trim() || !newProd.nameEn.trim() || !newProd.namePl.trim()) {
-      setError('Uzupełnij kod, nazwę EN i nazwę PL produktu')
-      return
+      setError('Uzupełnij kod, nazwę EN i nazwę PL'); return
     }
     try {
       const p = await saveProduct(newProd.code.trim(), newProd.nameEn.trim(), newProd.namePl.trim())
-      setProducts(prev => {
-        const exists = prev.find(x => x.id === p.id)
-        return exists ? prev.map(x => x.id === p.id ? p : x) : [...prev, p]
-      })
+      setProducts(prev => [...prev.filter(x => x.id !== p.id), p].sort((a, b) => a.code.localeCompare(b.code)))
       setNewProd({ code: '', nameEn: '', namePl: '' })
     } catch (e) { setError('Błąd zapisu produktu: ' + e.message) }
   }
 
+  async function handleUpdateProduct() {
+    if (!editProd) return
+    try {
+      const p = await updateProduct(editProd.id, editProd.code, editProd.name, editProd.namePL)
+      setProducts(prev => prev.map(x => x.id === p.id ? p : x))
+      setEditProd(null)
+    } catch (e) { setError('Błąd edycji produktu: ' + e.message) }
+  }
+
   async function handleDeleteProduct(id) {
     if (!window.confirm('Usunąć produkt?')) return
-    try {
-      await deleteProduct(id)
-      setProducts(p => p.filter(x => x.id !== id))
-    } catch (e) { setError('Błąd: ' + e.message) }
+    try { await deleteProduct(id); setProducts(p => p.filter(x => x.id !== id)) }
+    catch (e) { setError('Błąd: ' + e.message) }
   }
 
   // ── Packagings ──
-  const [newPack, setNewPack] = useState({ namePl: '', nameEn: '', bagKg: '', bagsPerPallet: '' })
+  const [newPack, setNewPack] = useState({ namePl: '', nameEn: '', bagKg: '', bagsPerPallet: '', buyerId: '' })
+  const [editPack, setEditPack] = useState(null)
   function snk(k, v) { setNewPack(p => ({ ...p, [k]: v })) }
+  function sek(k, v) { setEditPack(p => ({ ...p, [k]: v })) }
 
   async function handleAddPackaging() {
     if (!newPack.namePl.trim() || !newPack.nameEn.trim() || !newPack.bagKg || !newPack.bagsPerPallet) {
-      setError('Uzupełnij wszystkie pola opakowania')
-      return
+      setError('Uzupełnij wszystkie pola opakowania'); return
     }
     try {
-      const p = await savePackaging(newPack.namePl.trim(), newPack.nameEn.trim(), Number(newPack.bagKg), Number(newPack.bagsPerPallet))
+      const p = await savePackaging(newPack.namePl.trim(), newPack.nameEn.trim(), Number(newPack.bagKg), Number(newPack.bagsPerPallet), newPack.buyerId || null)
       setPackagings(prev => [...prev, p])
-      setNewPack({ namePl: '', nameEn: '', bagKg: '', bagsPerPallet: '' })
+      setNewPack({ namePl: '', nameEn: '', bagKg: '', bagsPerPallet: '', buyerId: '' })
     } catch (e) { setError('Błąd zapisu opakowania: ' + e.message) }
+  }
+
+  async function handleUpdatePackaging() {
+    if (!editPack) return
+    try {
+      const p = await updatePackaging(editPack.id, editPack.labelPL, editPack.label, Number(editPack.bagKg), Number(editPack.bagsPerPallet), editPack.buyerId || null)
+      setPackagings(prev => prev.map(x => x.id === p.id ? p : x))
+      setEditPack(null)
+    } catch (e) { setError('Błąd edycji opakowania: ' + e.message) }
   }
 
   async function handleDeletePackaging(id) {
     if (!window.confirm('Usunąć opakowanie?')) return
-    try {
-      await deletePackaging(id)
-      setPackagings(p => p.filter(x => x.id !== id))
-    } catch (e) { setError('Błąd: ' + e.message) }
+    try { await deletePackaging(id); setPackagings(p => p.filter(x => x.id !== id)) }
+    catch (e) { setError('Błąd: ' + e.message) }
   }
 
   // ── Archive ──
@@ -243,8 +249,7 @@ export default function App() {
 
   async function handleArchiveSave() {
     if (!arch.certNumber.trim() || !arch.buyerName.trim() || !arch.lotSerial.trim()) {
-      setError('Uzupełnij: numer certyfikatu, nabywcę i numer LOT')
-      return
+      setError('Uzupełnij: numer certyfikatu, nabywcę i numer LOT'); return
     }
     const ap = packagings.find(p => p.value === arch.packaging) || packagings[0]
     if (!ap) { setError('Wybierz opakowanie'); return }
@@ -255,10 +260,8 @@ export default function App() {
     })()
     const archProd = products.find(p => p.code === arch.productCode) || products[0]
     const doc = {
-      certNumber: arch.certNumber,
-      buyer: arch.buyerName, buyerAddress: arch.buyerAddress,
-      productCode: arch.productCode || archProd?.code || '',
-      productName: archProd?.name || '',
+      certNumber: arch.certNumber, buyer: arch.buyerName, buyerAddress: arch.buyerAddress,
+      productCode: arch.productCode || archProd?.code || '', productName: archProd?.name || '',
       dateLoading: arch.dateLoading, dateProduction: aprod, bestBefore: addYear(aprod),
       packaging: ap.label, origin: 'Poland', truckNumber: arch.truckNumber,
       lots: alots, totalKg: Number(arch.pallets) * akpL,
@@ -269,21 +272,20 @@ export default function App() {
     setSaving(true)
     try {
       const saved = await archiveCertificate(doc)
-      setCerts(c => [saved, ...c])
-      setArchOpen(false)
+      setCerts(c => [saved, ...c]); setArchOpen(false)
       setArch(p => ({ ...p, certNumber: '', lotSerial: '', truckNumber: '' }))
     } catch (e) { setError('Błąd archiwizacji: ' + e.message) }
     finally { setSaving(false) }
   }
 
   const filteredCerts = certs.filter(c =>
+    (!filterCertNum || c.certNumber?.toLowerCase().includes(filterCertNum.toLowerCase())) &&
+    (!filterStatus || c.status === filterStatus) &&
     (!filterBuyer || c.buyer?.toLowerCase().includes(filterBuyer.toLowerCase())) &&
     (!filterProduct || c.productCode === filterProduct)
   )
 
-  if (preview) return (
-    <Preview doc={preview} onSave={handleSave} onBack={() => setPreview(null)} saving={saving} />
-  )
+  if (preview) return <Preview doc={preview} onSave={handleSave} onBack={() => setPreview(null)} saving={saving} />
 
   const tabStyle = i => ({
     padding: '7px 14px', border: 'none', background: 'transparent', cursor: 'pointer',
@@ -293,11 +295,28 @@ export default function App() {
     whiteSpace: 'nowrap',
   })
 
+  const editBoxStyle = {
+    background: 'var(--color-background-secondary)',
+    border: '0.5px solid var(--color-border-secondary)',
+    borderRadius: 10, padding: '12px 14px', marginBottom: 8,
+  }
+
+  const buyerOptions = [
+    { value: '', label: '— Dla wszystkich klientów —' },
+    ...buyers.map(b => ({ value: String(b.id), label: b.name }))
+  ]
+
   return (
     <div style={{ fontFamily: "'Segoe UI', system-ui, sans-serif", maxWidth: 900, margin: '0 auto', paddingBottom: 40 }}>
 
-      {/* Header */}
-      <div style={{ borderBottom: '0.5px solid var(--color-border-tertiary)', padding: '14px 20px 0', background: 'var(--color-background-primary)', position: 'sticky', top: 0, zIndex: 10 }}>
+      {/* Header — fixed, nie nakłada się */}
+      <div style={{
+        borderBottom: '0.5px solid var(--color-border-tertiary)',
+        padding: '14px 20px 0',
+        background: 'var(--color-background-primary)',
+        position: 'sticky', top: 0, zIndex: 100,
+        boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+      }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
           <div>
             <div style={{ fontSize: 18, fontWeight: 500, letterSpacing: 1 }}>🌿 ECOCORN</div>
@@ -318,13 +337,13 @@ export default function App() {
         </div>
       </div>
 
+      {/* Content — z marginesem górnym żeby nie nakładać się na header */}
       <div style={{ padding: '18px 20px 0' }}>
         <ErrorBanner message={error} onDismiss={() => setError(null)} />
 
         {/* ── TAB 0: NOWY DOKUMENT ── */}
         {tab === 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <Sec label="Typ dokumentu">
                 <Toggle options={[['both', 'QC + Packing List'], ['qc', 'Quality Certificate'], ['pl', 'Packing List']]} value={docType} onChange={setDocType} />
@@ -335,25 +354,15 @@ export default function App() {
             </div>
 
             <Sec label="Nabywca">
-              <Lbl>Wybierz klienta z bazy <span style={{ fontSize: 10, color: 'var(--color-text-secondary)' }}>(lub wpisz nazwę ręcznie poniżej)</span></Lbl>
-              <BuyerCombo
-                value={f.buyerName}
-                buyers={buyers}
-                onSelect={b => {
-                  if (b) {
-                    setF(p => ({
-                      ...p,
-                      buyerName: b.name,
-                      buyerAddress: b.delivery_address || b.address || '',
-                    }))
-                  } else {
-                    setF(p => ({ ...p, buyerName: '', buyerAddress: '' }))
-                  }
-                }}
-                placeholder="Wybierz klienta z bazy..."
-              />
+              <Lbl>Wybierz klienta z bazy <span style={{ fontSize: 10, color: 'var(--color-text-secondary)' }}>(lub wpisz ręcznie)</span></Lbl>
+              <BuyerCombo value={f.buyerName} buyers={buyers}
+                onSelect={b => b
+                  ? setF(p => ({ ...p, buyerName: b.name, buyerAddress: b.delivery_address || b.address || '', buyerId: b.id }))
+                  : setF(p => ({ ...p, buyerName: '', buyerAddress: '', buyerId: null }))
+                }
+                placeholder="Wybierz klienta z bazy..." />
               <div style={{ marginTop: 8 }}>
-                <Lbl>Adres na dokumencie <span style={{ fontSize: 10, color: 'var(--color-text-secondary)' }}>(auto-uzupełniony, możesz edytować)</span></Lbl>
+                <Lbl>Adres na dokumencie <span style={{ fontSize: 10, color: 'var(--color-text-secondary)' }}>(auto, możesz edytować)</span></Lbl>
                 <Inp value={f.buyerAddress} onChange={v => sf('buyerAddress', v)} placeholder="Adres widoczny na certyfikacie..." />
               </div>
             </Sec>
@@ -362,13 +371,15 @@ export default function App() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                 <div>
                   <Lbl>Produkt</Lbl>
-                  <Sel value={f.productCode} onChange={onProductChange}
-                    options={products.map(p => ({ value: p.code, label: `${p.code} — ${p.name}` }))} />
+                  <Sel value={f.productCode} onChange={onProductChange} options={products.map(p => ({ value: p.code, label: `${p.code} — ${p.name}` }))} />
                 </div>
                 <div>
                   <Lbl>Opakowanie <span style={{ fontSize: 10, color: 'var(--color-text-secondary)' }}>→ {kgPerLot.toLocaleString()} kg/paleta</span></Lbl>
                   <Sel value={f.packaging} onChange={v => sf('packaging', v)}
-                    options={packagings.map(p => ({ value: p.value, label: `${p.label} → ${(p.bagKg * p.bagsPerPallet).toLocaleString()} kg/paleta` }))} />
+                    options={availablePackagings.map(p => ({
+                      value: p.value,
+                      label: `${p.labelPL || p.label}${p.buyerName ? ` (${p.buyerName})` : ''} → ${(p.bagKg * p.bagsPerPallet).toLocaleString()} kg/paleta`
+                    }))} />
                 </div>
               </div>
             </Sec>
@@ -391,29 +402,20 @@ export default function App() {
                 </div>
                 <div>
                   <Lbl>Kraj pochodzenia</Lbl>
-                  <Sel value={f.origin} onChange={v => sf('origin', v)}
-                    options={[{ value: 'Poland', label: 'Poland' }, { value: 'Polska', label: 'Polska' }]} />
+                  <Sel value={f.origin} onChange={v => sf('origin', v)} options={[{ value: 'Poland', label: 'Poland' }, { value: 'Polska', label: 'Polska' }]} />
                 </div>
               </div>
-
               {!f.manualLots && autoLots.length > 0 && (
                 <div style={{ background: 'var(--color-background-secondary)', borderRadius: 8, padding: '10px 12px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                    <span style={{ fontSize: 11, color: 'var(--color-text-secondary)', fontWeight: 500 }}>
-                      ✓ {autoLots.length} partii · {totalKg.toLocaleString()} kg łącznie
-                    </span>
-                    <button onClick={() => setF(p => ({ ...p, manualLots: true, customLots: autoLots.map(l => ({ ...l })) }))}
-                      style={{ fontSize: 11, border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--color-text-secondary)', textDecoration: 'underline' }}>
-                      Edytuj ręcznie
-                    </button>
+                    <span style={{ fontSize: 11, color: 'var(--color-text-secondary)', fontWeight: 500 }}>✓ {autoLots.length} partii · {totalKg.toLocaleString()} kg łącznie</span>
+                    <button onClick={() => setF(p => ({ ...p, manualLots: true, customLots: autoLots.map(l => ({ ...l })) }))} style={{ fontSize: 11, border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--color-text-secondary)', textDecoration: 'underline' }}>Edytuj ręcznie</button>
                   </div>
                   <LotGrid lots={autoLots} />
                 </div>
               )}
               {!f.manualLots && !autoLots.length && (
-                <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', padding: '6px 0' }}>
-                  ← Wpisz numer seryjny pierwszej partii aby wygenerować tabelę LOT
-                </div>
+                <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', padding: '6px 0' }}>← Wpisz numer seryjny pierwszej partii aby wygenerować tabelę LOT</div>
               )}
               {f.manualLots && (
                 <div>
@@ -483,9 +485,7 @@ export default function App() {
                 color: '#fff', border: 'none', borderRadius: 10,
                 cursor: formErrors.length > 0 || loading ? 'not-allowed' : 'pointer',
                 fontSize: 14, fontWeight: 500,
-              }}>
-                Podgląd i generuj dokumenty →
-              </button>
+              }}>Podgląd i generuj dokumenty →</button>
             </div>
           </div>
         )}
@@ -493,11 +493,29 @@ export default function App() {
         {/* ── TAB 1: BAZA CERTYFIKATÓW ── */}
         {tab === 1 && (
           <div>
-            <div style={{ display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap', alignItems: 'center' }}>
-              <Inp value={filterBuyer} onChange={setFilterBuyer} placeholder="Szukaj nabywcy..." style={{ width: 200 }} />
-              <Sel value={filterProduct} onChange={setFilterProduct}
-                options={[{ value: '', label: 'Wszystkie produkty' }, ...products.map(p => ({ value: p.code, label: p.code }))]} />
-              <div style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--color-text-secondary)' }}>{filteredCerts.length} certyfikatów</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '160px 1fr 180px 160px', gap: 10, marginBottom: 10 }}>
+              <div><Lbl>Nr certyfikatu</Lbl><Inp value={filterCertNum} onChange={setFilterCertNum} placeholder="np. 96/2026" /></div>
+              <div><Lbl>Klient</Lbl><Inp value={filterBuyer} onChange={setFilterBuyer} placeholder="Szukaj klienta..." /></div>
+              <div><Lbl>Status</Lbl>
+                <Sel value={filterStatus} onChange={setFilterStatus} options={[
+                  { value: '', label: 'Wszystkie statusy' },
+                  { value: 'saved', label: 'Zapisany' },
+                  { value: 'sent', label: 'Wysłany' },
+                  { value: 'archived', label: 'Archiwum' },
+                ]} />
+              </div>
+              <div><Lbl>Produkt</Lbl>
+                <Sel value={filterProduct} onChange={setFilterProduct} options={[{ value: '', label: 'Wszystkie' }, ...products.map(p => ({ value: p.code, label: p.code }))]} />
+              </div>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+              <span style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>{filteredCerts.length} certyfikatów</span>
+              {(filterCertNum || filterBuyer || filterStatus || filterProduct) && (
+                <button onClick={() => { setFilterCertNum(''); setFilterBuyer(''); setFilterStatus(''); setFilterProduct('') }}
+                  style={{ fontSize: 12, border: 'none', background: 'transparent', cursor: 'pointer', color: '#a32d2d' }}>
+                  ✕ Wyczyść filtry
+                </button>
+              )}
             </div>
             {loading ? <Spinner /> : filteredCerts.length === 0
               ? <div style={{ textAlign: 'center', padding: '40px 0', fontSize: 13, color: 'var(--color-text-secondary)' }}>Brak certyfikatów.</div>
@@ -526,15 +544,11 @@ export default function App() {
                   <div><Lbl>Nr certyfikatu *</Lbl><Inp value={arch.certNumber} onChange={v => sa('certNumber', v)} placeholder="94/2026/EN" /></div>
                   <div>
                     <Lbl>Nabywca *</Lbl>
-                    <BuyerCombo
-                      value={arch.buyerName}
-                      buyers={buyers}
-                      onSelect={b => {
-                        if (b) setArch(a => ({ ...a, buyerName: b.name, buyerAddress: b.delivery_address || b.address || '' }))
-                        else setArch(a => ({ ...a, buyerName: '', buyerAddress: '' }))
-                      }}
-                      placeholder="Wybierz nabywcę..."
-                    />
+                    <BuyerCombo value={arch.buyerName} buyers={buyers}
+                      onSelect={b => b
+                        ? setArch(a => ({ ...a, buyerName: b.name, buyerAddress: b.delivery_address || b.address || '' }))
+                        : setArch(a => ({ ...a, buyerName: '', buyerAddress: '' }))
+                      } placeholder="Wybierz nabywcę..." />
                   </div>
                   <div><Lbl>Produkt</Lbl><Sel value={arch.productCode || (products[0]?.code || '')} onChange={v => sa('productCode', v)} options={products.map(p => ({ value: p.code, label: `${p.code} — ${p.name}` }))} /></div>
                   <div><Lbl>Opakowanie</Lbl><Sel value={arch.packaging || (packagings[0]?.value || '')} onChange={v => sa('packaging', v)} options={packagings.map(p => ({ value: p.value, label: p.label }))} /></div>
@@ -586,24 +600,43 @@ export default function App() {
                 <div><Lbl>Adres dostawy</Lbl><Inp value={newBuyer.deliveryAddress} onChange={v => snb('deliveryAddress', v)} placeholder="ul. Magazynowa 5, 00-000 Miasto" /></div>
               </div>
               <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                <button onClick={handleAddBuyer} style={{ padding: '8px 20px', background: '#185fa5', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 500 }}>
-                  + Zapisz klienta
-                </button>
+                <button onClick={handleAddBuyer} style={{ padding: '8px 20px', background: '#185fa5', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 500 }}>+ Zapisz klienta</button>
               </div>
             </Sec>
             {loading ? <Spinner /> : buyers.length === 0
-              ? <div style={{ textAlign: 'center', padding: '30px 0', fontSize: 13, color: 'var(--color-text-secondary)' }}>Brak klientów w bazie.</div>
+              ? <div style={{ textAlign: 'center', padding: '30px 0', fontSize: 13, color: 'var(--color-text-secondary)' }}>Brak klientów.</div>
               : buyers.map(b => (
-                <div key={b.id} style={{ background: 'var(--color-background-primary)', border: '0.5px solid var(--color-border-tertiary)', borderRadius: 10, padding: '12px 16px', display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 7 }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 500, fontSize: 14, marginBottom: 4 }}>{b.name}</div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2px 16px' }}>
-                      {b.nip && <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>🏷 NIP: {b.nip}</div>}
-                      {b.address && <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>📍 Siedziba: {b.address}</div>}
-                      {b.delivery_address && <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>🚚 Dostawa: {b.delivery_address}</div>}
+                <div key={b.id}>
+                  {editBuyer?.id === b.id ? (
+                    <div style={editBoxStyle}>
+                      <div style={{ fontSize: 11, fontWeight: 500, color: 'var(--color-text-secondary)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Edycja klienta</div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+                        <div><Lbl>Nazwa firmy *</Lbl><Inp value={editBuyer.name} onChange={v => seb('name', v)} /></div>
+                        <div><Lbl>NIP</Lbl><Inp value={editBuyer.nip || ''} onChange={v => seb('nip', v)} /></div>
+                        <div><Lbl>Adres siedziby</Lbl><Inp value={editBuyer.address || ''} onChange={v => seb('address', v)} /></div>
+                        <div><Lbl>Adres dostawy</Lbl><Inp value={editBuyer.delivery_address || ''} onChange={v => seb('delivery_address', v)} /></div>
+                      </div>
+                      <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                        <button onClick={() => setEditBuyer(null)} style={{ padding: '6px 14px', border: '0.5px solid var(--color-border-tertiary)', borderRadius: 7, background: 'transparent', cursor: 'pointer', fontSize: 13 }}>Anuluj</button>
+                        <button onClick={handleUpdateBuyer} style={{ padding: '6px 16px', background: '#185fa5', color: '#fff', border: 'none', borderRadius: 7, cursor: 'pointer', fontSize: 13, fontWeight: 500 }}>Zapisz zmiany</button>
+                      </div>
                     </div>
-                  </div>
-                  <button onClick={() => handleDeleteBuyer(b.id)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#a32d2d', fontSize: 13, flexShrink: 0 }}>Usuń</button>
+                  ) : (
+                    <div style={{ background: 'var(--color-background-primary)', border: '0.5px solid var(--color-border-tertiary)', borderRadius: 10, padding: '12px 16px', display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 7 }}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 500, fontSize: 14, marginBottom: 4 }}>{b.name}</div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2px 16px' }}>
+                          {b.nip && <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>🏷 NIP: {b.nip}</div>}
+                          {b.address && <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>📍 {b.address}</div>}
+                          {b.delivery_address && <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>🚚 {b.delivery_address}</div>}
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                        <button onClick={() => setEditBuyer({ ...b })} style={{ padding: '5px 11px', border: '0.5px solid var(--color-border-secondary)', borderRadius: 7, background: 'transparent', cursor: 'pointer', fontSize: 12 }}>Edytuj</button>
+                        <button onClick={() => handleDeleteBuyer(b.id)} style={{ padding: '5px 11px', border: '0.5px solid #f09595', borderRadius: 7, background: 'transparent', cursor: 'pointer', fontSize: 12, color: '#a32d2d' }}>Usuń</button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))
             }
@@ -620,21 +653,39 @@ export default function App() {
                 <div><Lbl>Nazwa PL *</Lbl><Inp value={newProd.namePl} onChange={v => snp('namePl', v)} placeholder="Suszone Puree Ziemniaczane" /></div>
               </div>
               <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                <button onClick={handleAddProduct} style={{ padding: '8px 20px', background: '#0f6e56', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 500 }}>
-                  + Zapisz produkt
-                </button>
+                <button onClick={handleAddProduct} style={{ padding: '8px 20px', background: '#0f6e56', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 500 }}>+ Zapisz produkt</button>
               </div>
             </Sec>
             {loading ? <Spinner /> : products.length === 0
               ? <div style={{ textAlign: 'center', padding: '30px 0', fontSize: 13, color: 'var(--color-text-secondary)' }}>Brak produktów.</div>
               : products.map(p => (
-                <div key={p.id} style={{ background: 'var(--color-background-primary)', border: '0.5px solid var(--color-border-tertiary)', borderRadius: 10, padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 16, marginBottom: 7 }}>
-                  <div style={{ background: '#e1f5ee', color: '#085041', fontWeight: 500, fontSize: 13, padding: '4px 12px', borderRadius: 8, whiteSpace: 'nowrap' }}>{p.code}</div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 500, fontSize: 14 }}>{p.name}</div>
-                    <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>{p.namePL}</div>
-                  </div>
-                  <button onClick={() => handleDeleteProduct(p.id)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#a32d2d', fontSize: 13 }}>Usuń</button>
+                <div key={p.id}>
+                  {editProd?.id === p.id ? (
+                    <div style={editBoxStyle}>
+                      <div style={{ fontSize: 11, fontWeight: 500, color: 'var(--color-text-secondary)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Edycja produktu</div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr 1fr', gap: 10, marginBottom: 10 }}>
+                        <div><Lbl>Kod *</Lbl><Inp value={editProd.code} onChange={v => sep('code', v)} /></div>
+                        <div><Lbl>Nazwa EN *</Lbl><Inp value={editProd.name} onChange={v => sep('name', v)} /></div>
+                        <div><Lbl>Nazwa PL *</Lbl><Inp value={editProd.namePL} onChange={v => sep('namePL', v)} /></div>
+                      </div>
+                      <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                        <button onClick={() => setEditProd(null)} style={{ padding: '6px 14px', border: '0.5px solid var(--color-border-tertiary)', borderRadius: 7, background: 'transparent', cursor: 'pointer', fontSize: 13 }}>Anuluj</button>
+                        <button onClick={handleUpdateProduct} style={{ padding: '6px 16px', background: '#0f6e56', color: '#fff', border: 'none', borderRadius: 7, cursor: 'pointer', fontSize: 13, fontWeight: 500 }}>Zapisz zmiany</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ background: 'var(--color-background-primary)', border: '0.5px solid var(--color-border-tertiary)', borderRadius: 10, padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 16, marginBottom: 7 }}>
+                      <div style={{ background: '#e1f5ee', color: '#085041', fontWeight: 500, fontSize: 13, padding: '4px 12px', borderRadius: 8, whiteSpace: 'nowrap' }}>{p.code}</div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 500, fontSize: 14 }}>{p.name}</div>
+                        <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>{p.namePL}</div>
+                      </div>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button onClick={() => setEditProd({ ...p })} style={{ padding: '5px 11px', border: '0.5px solid var(--color-border-secondary)', borderRadius: 7, background: 'transparent', cursor: 'pointer', fontSize: 12 }}>Edytuj</button>
+                        <button onClick={() => handleDeleteProduct(p.id)} style={{ padding: '5px 11px', border: '0.5px solid #f09595', borderRadius: 7, background: 'transparent', cursor: 'pointer', fontSize: 12, color: '#a32d2d' }}>Usuń</button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))
             }
@@ -645,39 +696,75 @@ export default function App() {
         {tab === 5 && (
           <div>
             <Sec label="Dodaj nowe opakowanie" style={{ marginBottom: 14 }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 120px 120px', gap: 10, marginBottom: 10 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 110px 110px', gap: 10, marginBottom: 10 }}>
                 <div><Lbl>Nazwa PL *</Lbl><Inp value={newPack.namePl} onChange={v => snk('namePl', v)} placeholder="Worek papierowy 25kg" /></div>
                 <div><Lbl>Nazwa EN *</Lbl><Inp value={newPack.nameEn} onChange={v => snk('nameEn', v)} placeholder="Papper Bag 25kg" /></div>
                 <div><Lbl>Waga szt. (kg) *</Lbl><Inp type="number" min="1" value={newPack.bagKg} onChange={v => snk('bagKg', v)} placeholder="25" /></div>
                 <div><Lbl>Szt./paleta *</Lbl><Inp type="number" min="1" value={newPack.bagsPerPallet} onChange={v => snk('bagsPerPallet', v)} placeholder="40" /></div>
               </div>
-              {newPack.bagKg && newPack.bagsPerPallet && (
-                <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginBottom: 10 }}>
-                  → {(Number(newPack.bagKg) * Number(newPack.bagsPerPallet)).toLocaleString()} kg / paleta
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 10, alignItems: 'end' }}>
+                <div>
+                  <Lbl>Przypisz do klienta <span style={{ fontSize: 10, color: 'var(--color-text-secondary)' }}>(opcjonalne — puste = dla wszystkich)</span></Lbl>
+                  <Sel value={newPack.buyerId} onChange={v => snk('buyerId', v)} options={buyerOptions} />
                 </div>
-              )}
-              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                <button onClick={handleAddPackaging} style={{ padding: '8px 20px', background: '#185fa5', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 500 }}>
-                  + Zapisz opakowanie
-                </button>
+                <div>
+                  {newPack.bagKg && newPack.bagsPerPallet && (
+                    <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginBottom: 6 }}>
+                      → {(Number(newPack.bagKg) * Number(newPack.bagsPerPallet)).toLocaleString()} kg / paleta
+                    </div>
+                  )}
+                  <button onClick={handleAddPackaging} style={{ padding: '8px 20px', background: '#185fa5', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap' }}>+ Zapisz opakowanie</button>
+                </div>
               </div>
             </Sec>
+
             {loading ? <Spinner /> : packagings.length === 0
               ? <div style={{ textAlign: 'center', padding: '30px 0', fontSize: 13, color: 'var(--color-text-secondary)' }}>Brak opakowań.</div>
               : packagings.map(p => (
-                <div key={p.id} style={{ background: 'var(--color-background-primary)', border: '0.5px solid var(--color-border-tertiary)', borderRadius: 10, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 16, marginBottom: 7 }}>
-                  <div style={{ background: '#e6f1fb', color: '#042c53', fontWeight: 500, fontSize: 13, padding: '4px 12px', borderRadius: 8, whiteSpace: 'nowrap' }}>{p.label}</div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 500, fontSize: 14 }}>{p.labelPL}</div>
-                    <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>
-                      {p.bagKg} kg/szt · {p.bagsPerPallet} szt/paleta · <strong>{(p.bagKg * p.bagsPerPallet).toLocaleString()} kg/paleta</strong>
+                <div key={p.id}>
+                  {editPack?.id === p.id ? (
+                    <div style={editBoxStyle}>
+                      <div style={{ fontSize: 11, fontWeight: 500, color: 'var(--color-text-secondary)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Edycja opakowania</div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 110px 110px', gap: 10, marginBottom: 10 }}>
+                        <div><Lbl>Nazwa PL *</Lbl><Inp value={editPack.labelPL} onChange={v => sek('labelPL', v)} /></div>
+                        <div><Lbl>Nazwa EN *</Lbl><Inp value={editPack.label} onChange={v => sek('label', v)} /></div>
+                        <div><Lbl>Waga szt. (kg)</Lbl><Inp type="number" value={editPack.bagKg} onChange={v => sek('bagKg', v)} /></div>
+                        <div><Lbl>Szt./paleta</Lbl><Inp type="number" value={editPack.bagsPerPallet} onChange={v => sek('bagsPerPallet', v)} /></div>
+                      </div>
+                      <div style={{ marginBottom: 10 }}>
+                        <Lbl>Przypisz do klienta <span style={{ fontSize: 10, color: 'var(--color-text-secondary)' }}>(puste = dla wszystkich)</span></Lbl>
+                        <Sel value={editPack.buyerId ? String(editPack.buyerId) : ''} onChange={v => sek('buyerId', v || null)} options={buyerOptions} />
+                      </div>
+                      {editPack.bagKg && editPack.bagsPerPallet && (
+                        <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginBottom: 10 }}>
+                          → {(Number(editPack.bagKg) * Number(editPack.bagsPerPallet)).toLocaleString()} kg / paleta
+                        </div>
+                      )}
+                      <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                        <button onClick={() => setEditPack(null)} style={{ padding: '6px 14px', border: '0.5px solid var(--color-border-tertiary)', borderRadius: 7, background: 'transparent', cursor: 'pointer', fontSize: 13 }}>Anuluj</button>
+                        <button onClick={handleUpdatePackaging} style={{ padding: '6px 16px', background: '#185fa5', color: '#fff', border: 'none', borderRadius: 7, cursor: 'pointer', fontSize: 13, fontWeight: 500 }}>Zapisz zmiany</button>
+                      </div>
                     </div>
-                  </div>
-                  <div style={{ textAlign: 'right', marginRight: 12 }}>
-                    <div style={{ fontSize: 22, fontWeight: 500 }}>{(p.bagKg * p.bagsPerPallet).toLocaleString()}</div>
-                    <div style={{ fontSize: 11, color: 'var(--color-text-secondary)' }}>kg / paleta</div>
-                  </div>
-                  <button onClick={() => handleDeletePackaging(p.id)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#a32d2d', fontSize: 13 }}>Usuń</button>
+                  ) : (
+                    <div style={{ background: 'var(--color-background-primary)', border: '0.5px solid var(--color-border-tertiary)', borderRadius: 10, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 16, marginBottom: 7 }}>
+                      <div style={{ background: '#e6f1fb', color: '#042c53', fontWeight: 500, fontSize: 13, padding: '4px 12px', borderRadius: 8, whiteSpace: 'nowrap' }}>{p.label}</div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 500, fontSize: 14 }}>{p.labelPL}</div>
+                        <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>
+                          {p.bagKg} kg/szt · {p.bagsPerPallet} szt/paleta · <strong>{(p.bagKg * p.bagsPerPallet).toLocaleString()} kg/paleta</strong>
+                          {p.buyerName && <span style={{ marginLeft: 10, background: '#fff3cd', color: '#856404', padding: '1px 7px', borderRadius: 10, fontSize: 11 }}>👤 {p.buyerName}</span>}
+                        </div>
+                      </div>
+                      <div style={{ textAlign: 'right', marginRight: 8 }}>
+                        <div style={{ fontSize: 20, fontWeight: 500 }}>{(p.bagKg * p.bagsPerPallet).toLocaleString()}</div>
+                        <div style={{ fontSize: 11, color: 'var(--color-text-secondary)' }}>kg / paleta</div>
+                      </div>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button onClick={() => setEditPack({ ...p })} style={{ padding: '5px 11px', border: '0.5px solid var(--color-border-secondary)', borderRadius: 7, background: 'transparent', cursor: 'pointer', fontSize: 12 }}>Edytuj</button>
+                        <button onClick={() => handleDeletePackaging(p.id)} style={{ padding: '5px 11px', border: '0.5px solid #f09595', borderRadius: 7, background: 'transparent', cursor: 'pointer', fontSize: 12, color: '#a32d2d' }}>Usuń</button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))
             }
