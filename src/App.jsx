@@ -27,6 +27,9 @@ export default function App() {
   const [filterBuyer, setFilterBuyer] = useState('')
   const [filterProduct, setFilterProduct] = useState('')
 
+  const [packFilter, setPackFilter] = useState('')
+  const [packSort, setPackSort] = useState('name')
+
   async function loadAll() {
     setLoading(true); setError(null)
     try {
@@ -66,7 +69,6 @@ export default function App() {
     }
   }, [packagings])
 
-  // When buyer changes, filter packagings relevant to them
   const availablePackagings = useMemo(() => {
     if (!f.buyerId) return packagings.filter(p => !p.buyerId)
     return packagings.filter(p => !p.buyerId || p.buyerId === f.buyerId)
@@ -278,12 +280,35 @@ export default function App() {
     finally { setSaving(false) }
   }
 
+  // ── Filtered certs ──
   const filteredCerts = certs.filter(c =>
     (!filterCertNum || c.certNumber?.toLowerCase().includes(filterCertNum.toLowerCase())) &&
     (!filterStatus || c.status === filterStatus) &&
     (!filterBuyer || c.buyer?.toLowerCase().includes(filterBuyer.toLowerCase())) &&
     (!filterProduct || c.productCode === filterProduct)
   )
+
+  // ── Filtered & sorted packagings ──
+  const filteredPackagings = useMemo(() => {
+    let list = [...packagings]
+    if (packFilter) {
+      const q = packFilter.toLowerCase()
+      list = list.filter(p =>
+        p.label?.toLowerCase().includes(q) ||
+        p.labelPL?.toLowerCase().includes(q) ||
+        p.buyerName?.toLowerCase().includes(q)
+      )
+    }
+    if (packSort === 'name') list.sort((a, b) => (a.labelPL || a.label || '').localeCompare(b.labelPL || b.label || ''))
+    if (packSort === 'kg') list.sort((a, b) => a.bagKg - b.bagKg)
+    if (packSort === 'client') list.sort((a, b) => (a.buyerName || '').localeCompare(b.buyerName || ''))
+    return list
+  }, [packagings, packFilter, packSort])
+
+  const buyerOptions = [
+    { value: '', label: '— Dla wszystkich klientów —' },
+    ...buyers.map(b => ({ value: String(b.id), label: b.name }))
+  ]
 
   if (preview) return <Preview doc={preview} onSave={handleSave} onBack={() => setPreview(null)} saving={saving} />
 
@@ -301,21 +326,16 @@ export default function App() {
     borderRadius: 10, padding: '12px 14px', marginBottom: 8,
   }
 
-  const buyerOptions = [
-    { value: '', label: '— Dla wszystkich klientów —' },
-    ...buyers.map(b => ({ value: String(b.id), label: b.name }))
-  ]
-
   return (
     <div style={{ fontFamily: "'Segoe UI', system-ui, sans-serif", maxWidth: 900, margin: '0 auto', paddingBottom: 40 }}>
 
-      {/* Header — fixed, nie nakłada się */}
+      {/* ── HEADER ── */}
       <div style={{
         borderBottom: '0.5px solid var(--color-border-tertiary)',
         padding: '14px 20px 0',
         background: 'var(--color-background-primary)',
         position: 'sticky', top: 0, zIndex: 100,
-        boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+        boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
           <div>
@@ -337,8 +357,8 @@ export default function App() {
         </div>
       </div>
 
-      {/* Content — z marginesem górnym żeby nie nakładać się na header */}
-      <div style={{ padding: '18px 20px 0' }}>
+      {/* ── CONTENT ── */}
+      <div style={{ padding: '18px 20px 40px' }}>
         <ErrorBanner message={error} onDismiss={() => setError(null)} />
 
         {/* ── TAB 0: NOWY DOKUMENT ── */}
@@ -496,7 +516,8 @@ export default function App() {
             <div style={{ display: 'grid', gridTemplateColumns: '160px 1fr 180px 160px', gap: 10, marginBottom: 10 }}>
               <div><Lbl>Nr certyfikatu</Lbl><Inp value={filterCertNum} onChange={setFilterCertNum} placeholder="np. 96/2026" /></div>
               <div><Lbl>Klient</Lbl><Inp value={filterBuyer} onChange={setFilterBuyer} placeholder="Szukaj klienta..." /></div>
-              <div><Lbl>Status</Lbl>
+              <div>
+                <Lbl>Status</Lbl>
                 <Sel value={filterStatus} onChange={setFilterStatus} options={[
                   { value: '', label: 'Wszystkie statusy' },
                   { value: 'saved', label: 'Zapisany' },
@@ -504,7 +525,8 @@ export default function App() {
                   { value: 'archived', label: 'Archiwum' },
                 ]} />
               </div>
-              <div><Lbl>Produkt</Lbl>
+              <div>
+                <Lbl>Produkt</Lbl>
                 <Sel value={filterProduct} onChange={setFilterProduct} options={[{ value: '', label: 'Wszystkie' }, ...products.map(p => ({ value: p.code, label: p.code }))]} />
               </div>
             </div>
@@ -718,9 +740,30 @@ export default function App() {
               </div>
             </Sec>
 
-            {loading ? <Spinner /> : packagings.length === 0
-              ? <div style={{ textAlign: 'center', padding: '30px 0', fontSize: 13, color: 'var(--color-text-secondary)' }}>Brak opakowań.</div>
-              : packagings.map(p => (
+            <div style={{ display: 'flex', gap: 10, marginBottom: 12, alignItems: 'center' }}>
+              <div style={{ flex: 1 }}>
+                <Inp value={packFilter} onChange={setPackFilter} placeholder="🔍 Szukaj opakowania..." />
+              </div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                {[['name', 'A–Z nazwa'], ['kg', 'Waga ↑'], ['client', 'Klient']].map(([val, lbl]) => (
+                  <button key={val} onClick={() => setPackSort(val)} style={{
+                    padding: '6px 12px', border: '0.5px solid', borderRadius: 7, cursor: 'pointer', fontSize: 12,
+                    borderColor: packSort === val ? '#185fa5' : 'var(--color-border-tertiary)',
+                    background: packSort === val ? '#e6f1fb' : 'transparent',
+                    color: packSort === val ? '#042c53' : 'var(--color-text-secondary)',
+                  }}>{lbl}</button>
+                ))}
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', whiteSpace: 'nowrap' }}>
+                {filteredPackagings.length} opakowań
+              </div>
+            </div>
+
+            {loading ? <Spinner /> : filteredPackagings.length === 0
+              ? <div style={{ textAlign: 'center', padding: '30px 0', fontSize: 13, color: 'var(--color-text-secondary)' }}>
+                  {packFilter ? 'Brak wyników.' : 'Brak opakowań.'}
+                </div>
+              : filteredPackagings.map(p => (
                 <div key={p.id}>
                   {editPack?.id === p.id ? (
                     <div style={editBoxStyle}>
@@ -750,9 +793,16 @@ export default function App() {
                       <div style={{ background: '#e6f1fb', color: '#042c53', fontWeight: 500, fontSize: 13, padding: '4px 12px', borderRadius: 8, whiteSpace: 'nowrap' }}>{p.label}</div>
                       <div style={{ flex: 1 }}>
                         <div style={{ fontWeight: 500, fontSize: 14 }}>{p.labelPL}</div>
-                        <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>
-                          {p.bagKg} kg/szt · {p.bagsPerPallet} szt/paleta · <strong>{(p.bagKg * p.bagsPerPallet).toLocaleString()} kg/paleta</strong>
-                          {p.buyerName && <span style={{ marginLeft: 10, background: '#fff3cd', color: '#856404', padding: '1px 7px', borderRadius: 10, fontSize: 11 }}>👤 {p.buyerName}</span>}
+                        <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginTop: 2 }}>
+                          <span>{p.bagKg} kg/szt</span>
+                          <span>·</span>
+                          <span>{p.bagsPerPallet} szt/paleta</span>
+                          <span>·</span>
+                          <strong>{(p.bagKg * p.bagsPerPallet).toLocaleString()} kg/paleta</strong>
+                          {p.buyerName
+                            ? <span style={{ background: '#fff3cd', color: '#856404', padding: '1px 8px', borderRadius: 10, fontSize: 11 }}>👤 {p.buyerName}</span>
+                            : <span style={{ background: '#e1f5ee', color: '#085041', padding: '1px 8px', borderRadius: 10, fontSize: 11 }}>🌐 Wszyscy klienci</span>
+                          }
                         </div>
                       </div>
                       <div style={{ textAlign: 'right', marginRight: 8 }}>
