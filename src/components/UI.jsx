@@ -56,19 +56,39 @@ export function Toggle({ options, value, onChange }) {
 
 export function Combo({ value, options, onChange, placeholder }) {
   const [open, setOpen] = useState(false)
+  const [pos, setPos] = useState({ top: 0, left: 0, width: 0 })
   const ref = useRef()
+  const inputRef = useRef()
+
   useEffect(() => {
     const h = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
     document.addEventListener('mousedown', h)
     return () => document.removeEventListener('mousedown', h)
   }, [])
+
+  function handleOpen() {
+    if (inputRef.current) {
+      const r = inputRef.current.getBoundingClientRect()
+      setPos({ top: r.bottom + window.scrollY, left: r.left + window.scrollX, width: r.width })
+    }
+    setOpen(true)
+  }
+
   const filtered = (options || []).filter(o => o.toLowerCase().includes((value || '').toLowerCase()))
+
   return (
     <div ref={ref} style={{ position: 'relative' }}>
-      <input value={value || ''} onChange={e => { onChange(e.target.value); setOpen(true) }}
-        onFocus={() => setOpen(true)} placeholder={placeholder} style={{ ...iStyle }} />
+      <input ref={inputRef} value={value || ''} onChange={e => { onChange(e.target.value); handleOpen() }}
+        onFocus={handleOpen} placeholder={placeholder} style={{ ...iStyle }} />
       {open && filtered.length > 0 && (
-        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 999, background: 'var(--color-background-primary)', border: '0.5px solid var(--color-border-secondary)', borderRadius: 8, marginTop: 2, overflow: 'hidden', boxShadow: '0 4px 16px rgba(0,0,0,0.1)' }}>
+        <div style={{
+          position: 'fixed', top: pos.top, left: pos.left, width: pos.width,
+          zIndex: 9999,
+          background: 'var(--color-background-primary)',
+          border: '0.5px solid var(--color-border-secondary)',
+          borderRadius: 8, marginTop: 2, overflow: 'hidden',
+          boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
+        }}>
           {filtered.map(o => (
             <div key={o} onMouseDown={() => { onChange(o); setOpen(false) }}
               style={{ padding: '8px 12px', fontSize: 13, cursor: 'pointer', borderBottom: '0.5px solid var(--color-border-tertiary)' }}
@@ -84,21 +104,36 @@ export function Combo({ value, options, onChange, placeholder }) {
 export function BuyerCombo({ value, buyers, onSelect, placeholder }) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
+  const [pos, setPos] = useState({ top: 0, left: 0, width: 0 })
   const ref = useRef()
+  const triggerRef = useRef()
+
   useEffect(() => {
     const h = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
     document.addEventListener('mousedown', h)
     return () => document.removeEventListener('mousedown', h)
   }, [])
+
+  function handleOpen() {
+    if (triggerRef.current) {
+      const r = triggerRef.current.getBoundingClientRect()
+      setPos({ top: r.bottom + window.scrollY, left: r.left + window.scrollX, width: r.width })
+    }
+    setOpen(v => !v)
+    setSearch('')
+  }
+
   const filtered = (buyers || []).filter(b =>
     !search || b.name?.toLowerCase().includes(search.toLowerCase()) ||
     b.address?.toLowerCase().includes(search.toLowerCase()) ||
     b.nip?.toLowerCase().includes(search.toLowerCase())
   )
   const selected = (buyers || []).find(b => b.name === value)
+
   return (
-    <div ref={ref} style={{ position: 'relative' }}>
-      <div onClick={() => { setOpen(v => !v); setSearch('') }} style={{
+    <div ref={ref}>
+      {/* Trigger */}
+      <div ref={triggerRef} onClick={handleOpen} style={{
         ...iStyle, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
         minHeight: selected ? 62 : 36, userSelect: 'none',
       }}>
@@ -116,18 +151,40 @@ export function BuyerCombo({ value, buyers, onSelect, placeholder }) {
         )}
         <span style={{ fontSize: 10, marginLeft: 8, color: 'var(--color-text-secondary)', flexShrink: 0 }}>{open ? '▲' : '▼'}</span>
       </div>
+
+      {/* Dropdown — portal przez fixed+zIndex */}
       {open && (
-        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 999, background: 'var(--color-background-primary)', border: '0.5px solid var(--color-border-secondary)', borderRadius: 8, marginTop: 3, boxShadow: '0 8px 24px rgba(0,0,0,0.12)', overflow: 'hidden' }}>
+        <div style={{
+          position: 'fixed',
+          top: pos.top,
+          left: pos.left,
+          width: pos.width,
+          zIndex: 9999,
+          background: 'var(--color-background-primary)',
+          border: '0.5px solid var(--color-border-secondary)',
+          borderRadius: 8,
+          boxShadow: '0 8px 32px rgba(0,0,0,0.18)',
+          overflow: 'hidden',
+        }}>
+          {/* Search */}
           <div style={{ padding: '8px 10px', borderBottom: '0.5px solid var(--color-border-tertiary)' }}>
-            <input autoFocus value={search} onChange={e => setSearch(e.target.value)} placeholder="Szukaj klienta..."
+            <input autoFocus value={search} onChange={e => setSearch(e.target.value)}
+              placeholder="Szukaj klienta..."
               style={{ ...iStyle, fontSize: 12, padding: '5px 8px' }} />
           </div>
-          <div style={{ maxHeight: 280, overflowY: 'auto' }}>
+
+          {/* List */}
+          <div style={{ maxHeight: 300, overflowY: 'auto' }}>
             {filtered.length === 0
               ? <div style={{ padding: '14px 12px', fontSize: 12, color: 'var(--color-text-secondary)', textAlign: 'center' }}>Brak wyników</div>
               : filtered.map(b => (
-                <div key={b.id} onMouseDown={() => { onSelect(b); setOpen(false); setSearch('') }}
-                  style={{ padding: '10px 14px', cursor: 'pointer', borderBottom: '0.5px solid var(--color-border-tertiary)', background: b.name === value ? 'var(--color-background-secondary)' : 'transparent' }}
+                <div key={b.id}
+                  onMouseDown={() => { onSelect(b); setOpen(false); setSearch('') }}
+                  style={{
+                    padding: '10px 14px', cursor: 'pointer',
+                    borderBottom: '0.5px solid var(--color-border-tertiary)',
+                    background: b.name === value ? 'var(--color-background-secondary)' : 'transparent',
+                  }}
                   onMouseEnter={e => e.currentTarget.style.background = 'var(--color-background-secondary)'}
                   onMouseLeave={e => e.currentTarget.style.background = b.name === value ? 'var(--color-background-secondary)' : 'transparent'}>
                   <div style={{ fontWeight: 500, fontSize: 13, marginBottom: 2 }}>{b.name}</div>
@@ -140,6 +197,8 @@ export function BuyerCombo({ value, buyers, onSelect, placeholder }) {
               ))
             }
           </div>
+
+          {/* Clear */}
           {value && (
             <div onMouseDown={() => { onSelect(null); setOpen(false); setSearch('') }}
               style={{ padding: '8px 14px', fontSize: 12, color: '#a32d2d', cursor: 'pointer', borderTop: '0.5px solid var(--color-border-tertiary)', textAlign: 'center' }}
@@ -220,37 +279,29 @@ export function ErrorBanner({ message, onDismiss }) {
   )
 }
 
-// ─── Layout: dwustrefowy układ (górna zablokowana + dolna scrollowana) ──────────
-
 export function PageLayout({ topZone, children }) {
   const topRef = useRef(null)
   const [topHeight, setTopHeight] = useState(0)
 
   useEffect(() => {
     if (!topRef.current) return
-    const obs = new ResizeObserver(() => {
-      setTopHeight(topRef.current?.offsetHeight || 0)
-    })
+    const obs = new ResizeObserver(() => setTopHeight(topRef.current?.offsetHeight || 0))
     obs.observe(topRef.current)
     setTopHeight(topRef.current.offsetHeight)
     return () => obs.disconnect()
   }, [])
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      {/* Zablokowana strefa górna */}
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
       <div ref={topRef} style={{
-        position: 'sticky',
-        top: 0,
-        zIndex: 50,
+        flexShrink: 0,
         background: 'var(--color-background-primary)',
         borderBottom: '0.5px solid var(--color-border-tertiary)',
-        paddingBottom: 12,
+        zIndex: 10,
       }}>
         {topZone}
       </div>
-      {/* Scrollowana lista */}
-      <div style={{ overflowY: 'auto', paddingTop: 12 }}>
+      <div style={{ flex: 1, overflowY: 'auto' }}>
         {children}
       </div>
     </div>
