@@ -309,6 +309,9 @@ export default function App() {
     ...buyers.map(b => ({ value: String(b.id), label: b.name }))
   ]
 
+  // Helper — etykieta opakowania z klientem
+  const packLabel = p => `${p.labelPL || p.label} → ${(p.bagKg * p.bagsPerPallet).toLocaleString()} kg/paleta${p.buyerName ? ` 👤 ${p.buyerName}` : ' 🌐'}`
+
   if (preview) return <Preview doc={preview} onSave={handleSave} onBack={() => setPreview(null)} saving={saving} />
 
   const tabStyle = i => ({
@@ -325,13 +328,12 @@ export default function App() {
     borderRadius: 10, padding: '12px 14px', marginBottom: 8,
   }
 
-  // Wysokość dostępna dla scrollowanej listy
   const listHeight = `calc(100vh - ${headerHeight}px - 20px)`
 
   return (
     <div style={{ fontFamily: "'Segoe UI', system-ui, sans-serif", maxWidth: 900, margin: '0 auto', height: '100vh', display: 'flex', flexDirection: 'column' }}>
 
-      {/* ── HEADER APLIKACJI — fixed na samej górze ── */}
+      {/* ── HEADER ── */}
       <div ref={headerRef} style={{
         position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100,
         background: 'var(--color-background-primary)',
@@ -360,11 +362,11 @@ export default function App() {
         </div>
       </div>
 
-      {/* ── STREFA TREŚCI — zaczyna się dokładnie pod headerem ── */}
+      {/* ── CONTENT ── */}
       <div style={{ marginTop: headerHeight, display: 'flex', flexDirection: 'column', height: listHeight, overflow: 'hidden' }}>
-        <ErrorBanner message={error} onDismiss={() => setError(null)} style={{ margin: '12px 20px 0' }} />
+        <ErrorBanner message={error} onDismiss={() => setError(null)} />
 
-        {/* ── TAB 0: NOWY DOKUMENT — cały scrollowany ── */}
+        {/* ── TAB 0: NOWY DOKUMENT ── */}
         {tab === 0 && (
           <div style={{ overflowY: 'auto', padding: '18px 20px 40px' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -394,12 +396,13 @@ export default function App() {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                   <div>
                     <Lbl>Produkt</Lbl>
-                    <Sel value={f.productCode} onChange={onProductChange} options={products.map(p => ({ value: p.code, label: `${p.code} — ${p.name}` }))} />
+                    <Sel value={f.productCode} onChange={onProductChange}
+                      options={products.map(p => ({ value: p.code, label: `${p.code} — ${p.name}` }))} />
                   </div>
                   <div>
                     <Lbl>Opakowanie <span style={{ fontSize: 10, color: 'var(--color-text-secondary)' }}>→ {kgPerLot.toLocaleString()} kg/paleta</span></Lbl>
                     <Sel value={f.packaging} onChange={v => sf('packaging', v)}
-                      options={availablePackagings.map(p => ({ value: p.value, label: `${p.labelPL || p.label}${p.buyerName ? ` (${p.buyerName})` : ''} → ${(p.bagKg * p.bagsPerPallet).toLocaleString()} kg/paleta` }))} />
+                      options={availablePackagings.map(p => ({ value: p.value, label: packLabel(p) }))} />
                   </div>
                 </div>
               </Sec>
@@ -422,14 +425,16 @@ export default function App() {
                   </div>
                   <div>
                     <Lbl>Kraj pochodzenia</Lbl>
-                    <Sel value={f.origin} onChange={v => sf('origin', v)} options={[{ value: 'Poland', label: 'Poland' }, { value: 'Polska', label: 'Polska' }]} />
+                    <Sel value={f.origin} onChange={v => sf('origin', v)}
+                      options={[{ value: 'Poland', label: 'Poland' }, { value: 'Polska', label: 'Polska' }]} />
                   </div>
                 </div>
                 {!f.manualLots && autoLots.length > 0 && (
                   <div style={{ background: 'var(--color-background-secondary)', borderRadius: 8, padding: '10px 12px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                       <span style={{ fontSize: 11, color: 'var(--color-text-secondary)', fontWeight: 500 }}>✓ {autoLots.length} partii · {totalKg.toLocaleString()} kg łącznie</span>
-                      <button onClick={() => setF(p => ({ ...p, manualLots: true, customLots: autoLots.map(l => ({ ...l })) }))} style={{ fontSize: 11, border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--color-text-secondary)', textDecoration: 'underline' }}>Edytuj ręcznie</button>
+                      <button onClick={() => setF(p => ({ ...p, manualLots: true, customLots: autoLots.map(l => ({ ...l })) }))}
+                        style={{ fontSize: 11, border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--color-text-secondary)', textDecoration: 'underline' }}>Edytuj ręcznie</button>
                     </div>
                     <LotGrid lots={autoLots} />
                   </div>
@@ -517,7 +522,8 @@ export default function App() {
                   ]} />
                 </div>
                 <div><Lbl>Produkt</Lbl>
-                  <Sel value={filterProduct} onChange={setFilterProduct} options={[{ value: '', label: 'Wszystkie' }, ...products.map(p => ({ value: p.code, label: p.code }))]} />
+                  <Sel value={filterProduct} onChange={setFilterProduct}
+                    options={[{ value: '', label: 'Wszystkie' }, ...products.map(p => ({ value: p.code, label: p.code }))]} />
                 </div>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
@@ -559,11 +565,19 @@ export default function App() {
                     <div><Lbl>Nr certyfikatu *</Lbl><Inp value={arch.certNumber} onChange={v => sa('certNumber', v)} placeholder="94/2026/EN" /></div>
                     <div><Lbl>Nabywca *</Lbl>
                       <BuyerCombo value={arch.buyerName} buyers={buyers}
-                        onSelect={b => b ? setArch(a => ({ ...a, buyerName: b.name, buyerAddress: b.delivery_address || b.address || '' })) : setArch(a => ({ ...a, buyerName: '', buyerAddress: '' }))}
-                        placeholder="Wybierz nabywcę..." />
+                        onSelect={b => b
+                          ? setArch(a => ({ ...a, buyerName: b.name, buyerAddress: b.delivery_address || b.address || '' }))
+                          : setArch(a => ({ ...a, buyerName: '', buyerAddress: '' }))
+                        } placeholder="Wybierz nabywcę..." />
                     </div>
-                    <div><Lbl>Produkt</Lbl><Sel value={arch.productCode || (products[0]?.code || '')} onChange={v => sa('productCode', v)} options={products.map(p => ({ value: p.code, label: `${p.code} — ${p.name}` }))} /></div>
-                    <div><Lbl>Opakowanie</Lbl><Sel value={arch.packaging || (packagings[0]?.value || '')} onChange={v => sa('packaging', v)} options={packagings.map(p => ({ value: p.value, label: p.label }))} /></div>
+                    <div><Lbl>Produkt</Lbl>
+                      <Sel value={arch.productCode || (products[0]?.code || '')} onChange={v => sa('productCode', v)}
+                        options={products.map(p => ({ value: p.code, label: `${p.code} — ${p.name}` }))} />
+                    </div>
+                    <div><Lbl>Opakowanie</Lbl>
+                      <Sel value={arch.packaging || (packagings[0]?.value || '')} onChange={v => sa('packaging', v)}
+                        options={packagings.map(p => ({ value: p.value, label: packLabel(p) }))} />
+                    </div>
                     <div><Lbl>Liczba palet</Lbl><Inp type="number" min="1" value={arch.pallets} onChange={v => sa('pallets', v)} /></div>
                     <div><Lbl>Prefiks LOT</Lbl><Inp value={arch.lotPrefix} onChange={v => sa('lotPrefix', v)} /></div>
                     <div><Lbl>Pierwszy nr seryjny LOT *</Lbl><Inp value={arch.lotSerial} onChange={v => sa('lotSerial', v.replace(/\D/g, ''))} placeholder="171" /></div>
