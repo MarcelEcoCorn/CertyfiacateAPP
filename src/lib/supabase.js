@@ -78,6 +78,20 @@ export async function saveBuyer(buyer) {
   return data
 }
 
+export async function updateBuyer(id, buyer) {
+  const { data, error } = await supabase
+    .from('buyers')
+    .update({
+      name:             buyer.name,
+      address:          buyer.address || '',
+      nip:              buyer.nip || '',
+      delivery_address: buyer.deliveryAddress || '',
+    })
+    .eq('id', id).select().single()
+  if (error) throw error
+  return data
+}
+
 export async function deleteBuyer(id) {
   const { error } = await supabase.from('buyers').delete().eq('id', id)
   if (error) throw error
@@ -103,6 +117,15 @@ export async function saveProduct(code, nameEn, namePl) {
   return { id: data.id, code: data.code, name: data.name_en, namePL: data.name_pl }
 }
 
+export async function updateProduct(id, code, nameEn, namePl) {
+  const { data, error } = await supabase
+    .from('products')
+    .update({ code, name_en: nameEn, name_pl: namePl })
+    .eq('id', id).select().single()
+  if (error) throw error
+  return { id: data.id, code: data.code, name: data.name_en, namePL: data.name_pl }
+}
+
 export async function deleteProduct(id) {
   const { error } = await supabase.from('products').delete().eq('id', id)
   if (error) throw error
@@ -110,9 +133,12 @@ export async function deleteProduct(id) {
 
 // ─── Packagings ───────────────────────────────────────────────────────────────
 
-export async function fetchPackagings() {
-  const { data, error } = await supabase
-    .from('packagings').select('*').order('bag_kg')
+export async function fetchPackagings(buyerId = null) {
+  let q = supabase.from('packagings').select('*, buyers(name)').order('bag_kg')
+  if (buyerId) {
+    q = q.or(`buyer_id.is.null,buyer_id.eq.${buyerId}`)
+  }
+  const { data, error } = await q
   if (error) throw error
   return data.map(r => ({
     id:            r.id,
@@ -121,19 +147,52 @@ export async function fetchPackagings() {
     value:         r.name_en.toUpperCase(),
     bagKg:         Number(r.bag_kg),
     bagsPerPallet: r.bags_per_pallet,
+    buyerId:       r.buyer_id || null,
+    buyerName:     r.buyers?.name || null,
   }))
 }
 
-export async function savePackaging(namePl, nameEn, bagKg, bagsPerPallet) {
+export async function savePackaging(namePl, nameEn, bagKg, bagsPerPallet, buyerId = null) {
   const { data, error } = await supabase
     .from('packagings')
-    .insert({ name_pl: namePl, name_en: nameEn, bag_kg: bagKg, bags_per_pallet: bagsPerPallet })
-    .select().single()
+    .insert({
+      name_pl: namePl, name_en: nameEn,
+      bag_kg: bagKg, bags_per_pallet: bagsPerPallet,
+      buyer_id: buyerId || null,
+    })
+    .select('*, buyers(name)').single()
   if (error) throw error
   return {
-    id: data.id, label: data.name_en, labelPL: data.name_pl,
-    value: data.name_en.toUpperCase(),
-    bagKg: Number(data.bag_kg), bagsPerPallet: data.bags_per_pallet,
+    id:            data.id,
+    label:         data.name_en,
+    labelPL:       data.name_pl,
+    value:         data.name_en.toUpperCase(),
+    bagKg:         Number(data.bag_kg),
+    bagsPerPallet: data.bags_per_pallet,
+    buyerId:       data.buyer_id || null,
+    buyerName:     data.buyers?.name || null,
+  }
+}
+
+export async function updatePackaging(id, namePl, nameEn, bagKg, bagsPerPallet, buyerId = null) {
+  const { data, error } = await supabase
+    .from('packagings')
+    .update({
+      name_pl: namePl, name_en: nameEn,
+      bag_kg: bagKg, bags_per_pallet: bagsPerPallet,
+      buyer_id: buyerId || null,
+    })
+    .eq('id', id).select('*, buyers(name)').single()
+  if (error) throw error
+  return {
+    id:            data.id,
+    label:         data.name_en,
+    labelPL:       data.name_pl,
+    value:         data.name_en.toUpperCase(),
+    bagKg:         Number(data.bag_kg),
+    bagsPerPallet: data.bags_per_pallet,
+    buyerId:       data.buyer_id || null,
+    buyerName:     data.buyers?.name || null,
   }
 }
 
