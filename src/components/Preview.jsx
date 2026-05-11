@@ -1,5 +1,16 @@
 import { useRef } from 'react'
-import { COMPANY, PRODUCTS, EN, PL, fmtD } from '../lib/constants.js'
+import { COMPANY, EN, PL, fmtD } from '../lib/constants.js'
+
+// Logo Ecocorn jako SVG inline
+const LogoSVG = () => (
+  <svg width="120" height="40" viewBox="0 0 120 40" xmlns="http://www.w3.org/2000/svg">
+    <text x="0" y="22" fontFamily="Arial Black, Arial" fontWeight="900" fontSize="20" fill="#1a6e3c" letterSpacing="1">ECO</text>
+    <text x="52" y="22" fontFamily="Arial Black, Arial" fontWeight="900" fontSize="20" fill="#5aab4a" letterSpacing="1">CORN</text>
+    <text x="0" y="34" fontFamily="Arial" fontSize="7" fill="#888" letterSpacing="2">THE FUTURE OF POTATO</text>
+    <circle cx="112" cy="8" r="6" fill="#5aab4a" opacity="0.3"/>
+    <circle cx="116" cy="12" r="4" fill="#1a6e3c" opacity="0.4"/>
+  </svg>
+)
 
 export default function Preview({ doc, onSave, onBack, saving }) {
   const printRef = useRef()
@@ -10,9 +21,8 @@ export default function Preview({ doc, onSave, onBack, saving }) {
 
   const lots = doc.lots || []
   const totalKg = doc.totalKg || lots.reduce((s, l) => s + (Number(l.qty) || 0), 0)
-  const productName = doc.productName || PRODUCTS.find(p => p.code === doc.productCode)?.name || ''
+  const productName = doc.productName || ''
 
-  // 17 rows × 2 columns — exact match to PDF template
   const rows = Array.from({ length: 17 }, (_, i) => ({
     nL: i + 1, lotL: lots[i]?.lot || '', qtyL: lots[i] ? `${lots[i].qty}kg` : '',
     nR: i + 18, lotR: lots[i + 17]?.lot || '', qtyR: lots[i + 17] ? `${lots[i + 17].qty}kg` : '',
@@ -29,8 +39,10 @@ export default function Preview({ doc, onSave, onBack, saving }) {
         body { font-family: Arial, sans-serif; font-size: 11px; margin: 20px; color: #000; background: #fff }
         table { width: 100%; border-collapse: collapse }
         td { border: 1px solid #aaa; padding: 2px 5px; font-size: 10px }
-        .b { font-weight: bold }
-        @media print { body { margin: 0; padding: 10px } .no-print { display: none } }
+        .logo-area { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px }
+        .company-info { font-size: 10px }
+        .doc-date { font-size: 10px; text-align: right }
+        @media print { body { margin: 0; padding: 10px } }
       </style></head>
       <body>${el.innerHTML}</body></html>
     `)
@@ -47,11 +59,13 @@ export default function Preview({ doc, onSave, onBack, saving }) {
   const kk = { minWidth: 165, fontWeight: 'bold', fontSize: 11 }
   const vv = { fontSize: 11 }
 
-  const Hdr = () => (
-    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 14 }}>
+  const DocHeader = () => (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
       <div>
-        <div style={{ fontWeight: 'bold', fontSize: 14, letterSpacing: 2 }}>ECOCORN</div>
-        <div style={{ fontSize: 9, color: '#666', marginBottom: 4 }}>The future of potato</div>
+        {/* Logo */}
+        <div style={{ marginBottom: 6 }}>
+          <LogoSVG />
+        </div>
         <div style={{ fontSize: 10 }}>
           {COMPANY.name}<br />
           {COMPANY.address}<br />
@@ -59,7 +73,9 @@ export default function Preview({ doc, onSave, onBack, saving }) {
           Tel. {COMPANY.tel}
         </div>
       </div>
-      <div style={{ fontSize: 10 }}>Przykona, {fmtD(doc.dateLoading)}</div>
+      <div style={{ fontSize: 10, textAlign: 'right' }}>
+        Przykona, {fmtD(doc.dateLoading)}
+      </div>
     </div>
   )
 
@@ -91,7 +107,7 @@ export default function Preview({ doc, onSave, onBack, saving }) {
     </div>
   )
 
-  const fields = (arr) => arr.map(([k, v]) => (
+  const fields = arr => arr.map(([k, v]) => (
     <div key={k} style={rr}><div style={kk}>{k}:</div><div style={vv}>{v}</div></div>
   ))
 
@@ -101,7 +117,8 @@ export default function Preview({ doc, onSave, onBack, saving }) {
       <div style={{
         borderBottom: '0.5px solid var(--color-border-tertiary)',
         padding: '11px 20px', background: 'var(--color-background-primary)',
-        display: 'flex', gap: 10, alignItems: 'center', position: 'sticky', top: 0, zIndex: 10,
+        display: 'flex', gap: 10, alignItems: 'center',
+        position: 'sticky', top: 0, zIndex: 10,
       }}>
         <button onClick={onBack} style={{ padding: '6px 14px', border: '0.5px solid var(--color-border-secondary)', borderRadius: 7, background: 'transparent', cursor: 'pointer', fontSize: 13 }}>
           ← Wróć
@@ -125,14 +142,14 @@ export default function Preview({ doc, onSave, onBack, saving }) {
         </div>
       </div>
 
-      {/* Document preview */}
+      {/* Document */}
       <div style={{ padding: 20, overflow: 'auto' }}>
         <div ref={printRef}>
 
           {/* QUALITY CERTIFICATE */}
           {showQC && (
             <div style={ds}>
-              <Hdr />
+              <DocHeader />
               <div style={{ textAlign: 'center', fontWeight: 'bold', fontSize: 13, borderBottom: '1px solid #000', paddingBottom: 6, marginBottom: 12 }}>
                 {L.qcTitle} No. {doc.certNumber || '___/2026/EN'}
               </div>
@@ -152,11 +169,7 @@ export default function Preview({ doc, onSave, onBack, saving }) {
                 <div style={kk}>Ingredients:</div>
                 <div style={vv}>
                   100% potato.<br />
-                  {L.appearance}<br />
-                  {L.smell}<br />
-                  {L.moisture}<br />
-                  {L.impurities}<br />
-                  {L.organoleptic}
+                  {L.appearance}<br />{L.smell}<br />{L.moisture}<br />{L.impurities}<br />{L.organoleptic}
                 </div>
               </div>
               <div style={{ fontWeight: 'bold', fontSize: 11, margin: '10px 0 4px' }}>{L.lotNumber}:</div>
@@ -169,7 +182,7 @@ export default function Preview({ doc, onSave, onBack, saving }) {
           {/* PACKING LIST */}
           {showPL && (
             <div style={{ ...ds, marginTop: showQC ? 20 : 0, borderTop: showQC ? '2px dashed #ccc' : 'none', paddingTop: showQC ? 20 : 0 }}>
-              <Hdr />
+              <DocHeader />
               <div style={{ textAlign: 'center', fontWeight: 'bold', fontSize: 13, borderBottom: '1px solid #000', paddingBottom: 6, marginBottom: 12 }}>
                 {L.plTitle}
               </div>
