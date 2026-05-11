@@ -309,23 +309,46 @@ export function ImportModal({ type, onImport, onClose }) {
     }).filter(r => Object.values(r).some(v => v))
   }
 
-  function handleFile(e) {
+function handleFile(e) {
     const file = e.target.files[0]
     if (!file) return
     setError('')
+
+    // Próbujemy kolejno: UTF-8, Windows-1250, ISO-8859-2
+    function tryDecode(buffer) {
+      const encodings = ['UTF-8', 'windows-1250', 'iso-8859-2', 'iso-8859-1']
+      for (const enc of encodings) {
+        try {
+          const decoder = new TextDecoder(enc, { fatal: true })
+          const text = decoder.decode(buffer)
+          // Sprawdź czy tekst zawiera polskie znaki (po dekodowaniu)
+          if (/[ąćęłńóśźżĄĆĘŁŃÓŚŹŻ]/.test(text) || enc === 'UTF-8') {
+            return text
+          }
+        } catch {}
+      }
+      // Fallback — windows-1250 bez strict mode
+      return new TextDecoder('windows-1250').decode(buffer)
+    }
+
     const reader = new FileReader()
     reader.onload = ev => {
       try {
-        const text = ev.target.result
+        const buffer = ev.target.result
+        const text = tryDecode(buffer)
         const parsed = parseCSV(text)
-        if (!parsed.length) { setError('Nie znaleziono danych. Upewnij się że plik jest w formacie CSV.'); return }
+        if (!parsed.length) {
+          setError('Nie znaleziono danych. Upewnij się że plik jest w formacie CSV.')
+          return
+        }
         setRows(parsed)
         setPreview(parsed.slice(0, 5))
       } catch (err) {
         setError('Błąd parsowania pliku: ' + err.message)
       }
     }
-    reader.readAsText(file, 'UTF-8')
+    // Czytaj jako ArrayBuffer (nie tekst) żeby móc ręcznie wybrać kodowanie
+    reader.readAsArrayBuffer(file)
   }
 
   const typeLabel = { buyers: 'Klientów', products: 'Produktów', packagings: 'Opakowań' }
@@ -341,8 +364,10 @@ export function ImportModal({ type, onImport, onClose }) {
         <div style={{ background: 'var(--color-background-secondary)', borderRadius: 8, padding: '10px 14px', marginBottom: 14, fontSize: 12, color: 'var(--color-text-secondary)' }}>
           <div style={{ fontWeight: 500, marginBottom: 4 }}>Format pliku CSV — kolumny w kolejności:</div>
           <div style={{ fontFamily: 'monospace', fontSize: 11 }}>{LABELS[type].join(' ; ')}</div>
-          <div style={{ marginTop: 6 }}>Rozdzielnik: przecinek lub średnik. Pierwsza linia może być nagłówkiem — zostanie pominięta.</div>
-        </div>
+<div style={{ marginTop: 6 }}>Rozdzielnik: przecinek lub średnik. Pierwsza linia może być nagłówkiem — zostanie pominięta.</div>
+          <div style={{ marginTop: 4, color: '#856404', background: '#fff3cd', borderRadius: 6, padding: '4px 8px' }}>
+            💡 Jeśli plik pochodzi z Excela — zapisz go jako <strong>CSV UTF-8</strong>: Plik → Zapisz jako → CSV UTF-8 (z BOM)
+          </div>
 
         <div style={{ marginBottom: 14 }}>
           <input ref={fileRef} type="file" accept=".csv,.txt" onChange={handleFile} style={{ display: 'none' }} />
