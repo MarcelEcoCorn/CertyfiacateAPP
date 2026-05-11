@@ -7,31 +7,6 @@ export const COMPANY = {
   regon: '241945484',
 }
 
-export const PRODUCTS = [
-  { code: '4.1/P', name: 'Dried Potato Powder',    namePL: 'Suszone Puree Ziemniaczane' },
-  { code: '3.1/S', name: 'Dried Potato Semolina',  namePL: 'Kasza Ziemniaczana Suszona' },
-  { code: '2.1/F', name: 'Dried Potato Flakes',    namePL: 'Płatki Ziemniaczane Suszone' },
-  { code: '1.1/G', name: 'Dried Potato Granules',  namePL: 'Granulat Ziemniaczany Suszony' },
-]
-
-export const PACKAGINGS = [
-  { label: 'Papper Bag 25kg', value: 'PAPPER BAGS 25', bagKg: 25,   bagsPerPallet: 40 },
-  { label: 'Papper Bag 50kg', value: 'PAPPER BAGS 50', bagKg: 50,   bagsPerPallet: 20 },
-  { label: 'Big-Bag 1000kg',  value: 'BIG-BAG',        bagKg: 1000, bagsPerPallet: 1  },
-]
-
-export const STATUS_COLOR = {
-  saved:    '#378add',
-  sent:     '#1d9e75',
-  archived: '#888780',
-}
-
-export const STATUS_LABEL = {
-  saved:    'Zapisany',
-  sent:     'Wysłany',
-  archived: 'Archiwum',
-}
-
 export const today = () => new Date().toISOString().slice(0, 10)
 
 export const fmtD = d => {
@@ -41,21 +16,22 @@ export const fmtD = d => {
   return `${day}.${m}.${y}`
 }
 
-export const addYear = d => {
+export const addDays = (d, days) => {
   if (!d) return ''
   const dt = new Date(d)
-  dt.setFullYear(dt.getFullYear() + 1)
+  dt.setDate(dt.getDate() + days)
   return dt.toISOString().slice(0, 10)
 }
 
+export const addYear = d => addDays(d, 365)
+
 export const yearShort = () => new Date().getFullYear().toString().slice(2)
 
-export function generateLots(prefix, startSerial, count, kgPerLot) {
-  if (!prefix || !startSerial || count < 1) return []
-  const base = parseInt(startSerial, 10)
-  if (isNaN(base)) return []
-  return Array.from({ length: count }, (_, i) => ({
-    lot: `${prefix}${base + i}`,
+export function generateLots(prefix, lotNumber, count, kgPerLot) {
+  if (!prefix || !lotNumber || count < 1) return []
+  // Każda paleta ma TEN SAM numer partii
+  return Array.from({ length: count }, () => ({
+    lot: `${prefix}${lotNumber}`,
     qty: kgPerLot,
   }))
 }
@@ -90,6 +66,6 @@ export const PL = {
   appearance: 'Wygląd i kolor: od kremowego do żółtego',
   smell: 'Zapach i smak: typowy dla suszonego ziemniaka.',
   moisture: 'Wilgotność: maks. 9%.',
-  impurities: 'Zawartość zanieczyszczeń mechanicznych/ferromagnetycznych: brak.',
+  impurities: 'Zawartość zanieczyszczeń: brak.',
   organoleptic: 'Ocena organoleptyczna: dobra.',
 }
