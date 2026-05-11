@@ -90,66 +90,14 @@ function useDropdownRect(ref, open) {
 export function BuyerCombo({ value, buyers, onSelect, placeholder }) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
-  const [dropStyle, setDropStyle] = useState({})
-  const triggerRef = useRef()
-  const dropRef = useRef()
+  const ref = useRef()
 
   useEffect(() => {
     if (!open) return
-    const h = e => {
-      if (triggerRef.current?.contains(e.target)) return
-      if (dropRef.current?.contains(e.target)) return
-      setOpen(false)
-    }
+    const h = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
     document.addEventListener('mousedown', h)
     return () => document.removeEventListener('mousedown', h)
   }, [open])
-
-  function calcDropStyle() {
-    if (!triggerRef.current) return
-    const r = triggerRef.current.getBoundingClientRect()
-    const spaceBelow = window.innerHeight - r.bottom
-    const spaceAbove = r.top
-    const dropH = 340
-
-    const base = {
-      position: 'fixed',
-      left: r.left,
-      width: r.width,
-      zIndex: 99999,
-      background: 'var(--color-background-primary)',
-      border: '1px solid var(--color-border-secondary)',
-      borderRadius: 8,
-      boxShadow: '0 8px 32px rgba(0,0,0,0.22)',
-      overflow: 'hidden',
-    }
-
-    if (spaceBelow < dropH && spaceAbove > spaceBelow) {
-      // Otwórz POWYŻEJ triggera
-      setDropStyle({
-        ...base,
-        bottom: window.innerHeight - r.top + 2,
-        maxHeight: Math.min(spaceAbove - 8, dropH),
-      })
-    } else {
-      // Otwórz PONIŻEJ triggera
-      setDropStyle({
-        ...base,
-        top: r.bottom + 2,
-        maxHeight: Math.min(spaceBelow - 8, dropH),
-      })
-    }
-  }
-
-  function handleToggle() {
-    if (!open) {
-      calcDropStyle()
-      setSearch('')
-      setOpen(true)
-    } else {
-      setOpen(false)
-    }
-  }
 
   const filtered = (buyers || []).filter(b =>
     !search ||
@@ -159,65 +107,16 @@ export function BuyerCombo({ value, buyers, onSelect, placeholder }) {
   )
   const selected = (buyers || []).find(b => b.name === value)
 
-  const dropdown = open ? createPortal(
-    <div ref={dropRef} style={dropStyle}>
-      <div style={{ padding: '8px 10px', borderBottom: '0.5px solid var(--color-border-tertiary)' }}>
-        <input
-          autoFocus
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          placeholder="Szukaj po nazwie, adresie, NIP..."
-          style={{ ...iStyle, fontSize: 12, padding: '5px 8px' }}
-          onKeyDown={e => e.key === 'Escape' && setOpen(false)}
-        />
-      </div>
-      <div style={{ overflowY: 'auto', maxHeight: 260 }}>
-        {filtered.length === 0
-          ? <div style={{ padding: '14px 12px', fontSize: 12, color: 'var(--color-text-secondary)', textAlign: 'center' }}>Brak wyników</div>
-          : filtered.map(b => (
-            <div key={b.id}
-              onMouseDown={e => { e.preventDefault(); onSelect(b); setOpen(false); setSearch('') }}
-              style={{
-                padding: '10px 14px', cursor: 'pointer',
-                borderBottom: '0.5px solid var(--color-border-tertiary)',
-                background: b.name === value ? 'var(--color-background-secondary)' : 'transparent',
-              }}
-              onMouseEnter={e => e.currentTarget.style.background = 'var(--color-background-secondary)'}
-              onMouseLeave={e => e.currentTarget.style.background = b.name === value ? 'var(--color-background-secondary)' : 'transparent'}
-            >
-              <div style={{ fontWeight: 500, fontSize: 13, marginBottom: 2 }}>{b.name}</div>
-              {b.address && <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginBottom: 1 }}>📍 {b.address}</div>}
-              <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-                {b.nip && <div style={{ fontSize: 11, color: 'var(--color-text-secondary)' }}>🏷 NIP: {b.nip}</div>}
-                {b.delivery_address && <div style={{ fontSize: 11, color: 'var(--color-text-secondary)' }}>🚚 {b.delivery_address}</div>}
-              </div>
-            </div>
-          ))
-        }
-      </div>
-      {value && (
-        <div
-          onMouseDown={e => { e.preventDefault(); onSelect(null); setOpen(false); setSearch('') }}
-          style={{ padding: '8px 14px', fontSize: 12, color: '#a32d2d', cursor: 'pointer', borderTop: '0.5px solid var(--color-border-tertiary)', textAlign: 'center' }}
-          onMouseEnter={e => e.currentTarget.style.background = '#fcebeb'}
-          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-        >
-          ✕ Wyczyść wybór
-        </div>
-      )}
-    </div>,
-    document.body
-  ) : null
-
   return (
-    <>
+    <div ref={ref} style={{ position: 'relative' }}>
+      {/* Trigger */}
       <div
-        ref={triggerRef}
-        onClick={handleToggle}
+        onClick={() => { setOpen(v => !v); setSearch('') }}
         style={{
           ...iStyle, cursor: 'pointer', display: 'flex',
           justifyContent: 'space-between', alignItems: 'center',
           minHeight: selected ? 64 : 36, userSelect: 'none',
+          position: 'relative', zIndex: open ? 10001 : 1,
         }}
       >
         {selected ? (
@@ -246,8 +145,71 @@ export function BuyerCombo({ value, buyers, onSelect, placeholder }) {
           {open ? '▲' : '▼'}
         </span>
       </div>
-      {dropdown}
-    </>
+
+      {/* Dropdown — ABSOLUTNY względem rodzica, POWYŻEJ triggera */}
+      {open && (
+        <div style={{
+          position: 'absolute',
+          bottom: '100%',
+          left: 0, right: 0,
+          marginBottom: 2,
+          zIndex: 10000,
+          background: 'var(--color-background-primary)',
+          border: '1px solid var(--color-border-secondary)',
+          borderRadius: 8,
+          boxShadow: '0 -8px 32px rgba(0,0,0,0.18)',
+          overflow: 'hidden',
+        }}>
+          {/* Search */}
+          <div style={{ padding: '8px 10px', borderBottom: '0.5px solid var(--color-border-tertiary)' }}>
+            <input
+              autoFocus
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Szukaj po nazwie, adresie, NIP..."
+              style={{ ...iStyle, fontSize: 12, padding: '5px 8px' }}
+              onKeyDown={e => e.key === 'Escape' && setOpen(false)}
+            />
+          </div>
+          {/* List */}
+          <div style={{ maxHeight: 280, overflowY: 'auto' }}>
+            {filtered.length === 0
+              ? <div style={{ padding: '14px 12px', fontSize: 12, color: 'var(--color-text-secondary)', textAlign: 'center' }}>Brak wyników</div>
+              : filtered.map(b => (
+                <div key={b.id}
+                  onMouseDown={e => { e.preventDefault(); onSelect(b); setOpen(false); setSearch('') }}
+                  style={{
+                    padding: '10px 14px', cursor: 'pointer',
+                    borderBottom: '0.5px solid var(--color-border-tertiary)',
+                    background: b.name === value ? 'var(--color-background-secondary)' : 'transparent',
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'var(--color-background-secondary)'}
+                  onMouseLeave={e => e.currentTarget.style.background = b.name === value ? 'var(--color-background-secondary)' : 'transparent'}
+                >
+                  <div style={{ fontWeight: 500, fontSize: 13, marginBottom: 2 }}>{b.name}</div>
+                  {b.address && <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginBottom: 1 }}>📍 {b.address}</div>}
+                  <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+                    {b.nip && <div style={{ fontSize: 11, color: 'var(--color-text-secondary)' }}>🏷 NIP: {b.nip}</div>}
+                    {b.delivery_address && <div style={{ fontSize: 11, color: 'var(--color-text-secondary)' }}>🚚 {b.delivery_address}</div>}
+                  </div>
+                </div>
+              ))
+            }
+          </div>
+          {/* Clear */}
+          {value && (
+            <div
+              onMouseDown={e => { e.preventDefault(); onSelect(null); setOpen(false); setSearch('') }}
+              style={{ padding: '8px 14px', fontSize: 12, color: '#a32d2d', cursor: 'pointer', borderTop: '0.5px solid var(--color-border-tertiary)', textAlign: 'center' }}
+              onMouseEnter={e => e.currentTarget.style.background = '#fcebeb'}
+              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+            >
+              ✕ Wyczyść wybór
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   )
 }
 
