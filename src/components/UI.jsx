@@ -90,9 +90,9 @@ function useDropdownRect(ref, open) {
 export function BuyerCombo({ value, buyers, onSelect, placeholder }) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
+  const [dropStyle, setDropStyle] = useState({})
   const triggerRef = useRef()
   const dropRef = useRef()
-  const rect = useDropdownRect(triggerRef, open)
 
   useEffect(() => {
     if (!open) return
@@ -105,6 +105,52 @@ export function BuyerCombo({ value, buyers, onSelect, placeholder }) {
     return () => document.removeEventListener('mousedown', h)
   }, [open])
 
+  function calcDropStyle() {
+    if (!triggerRef.current) return
+    const r = triggerRef.current.getBoundingClientRect()
+    const spaceBelow = window.innerHeight - r.bottom
+    const spaceAbove = r.top
+    const dropH = 340
+
+    const base = {
+      position: 'fixed',
+      left: r.left,
+      width: r.width,
+      zIndex: 99999,
+      background: 'var(--color-background-primary)',
+      border: '1px solid var(--color-border-secondary)',
+      borderRadius: 8,
+      boxShadow: '0 8px 32px rgba(0,0,0,0.22)',
+      overflow: 'hidden',
+    }
+
+    if (spaceBelow < dropH && spaceAbove > spaceBelow) {
+      // Otwórz POWYŻEJ triggera
+      setDropStyle({
+        ...base,
+        bottom: window.innerHeight - r.top + 2,
+        maxHeight: Math.min(spaceAbove - 8, dropH),
+      })
+    } else {
+      // Otwórz PONIŻEJ triggera
+      setDropStyle({
+        ...base,
+        top: r.bottom + 2,
+        maxHeight: Math.min(spaceBelow - 8, dropH),
+      })
+    }
+  }
+
+  function handleToggle() {
+    if (!open) {
+      calcDropStyle()
+      setSearch('')
+      setOpen(true)
+    } else {
+      setOpen(false)
+    }
+  }
+
   const filtered = (buyers || []).filter(b =>
     !search ||
     b.name?.toLowerCase().includes(search.toLowerCase()) ||
@@ -113,29 +159,17 @@ export function BuyerCombo({ value, buyers, onSelect, placeholder }) {
   )
   const selected = (buyers || []).find(b => b.name === value)
 
-  const dropStyle = rect ? {
-    position: 'fixed',
-    left: rect.left,
-    width: rect.width,
-    zIndex: 99999,
-    background: 'var(--color-background-primary)',
-    border: '1px solid var(--color-border-secondary)',
-    borderRadius: 8,
-    boxShadow: '0 8px 32px rgba(0,0,0,0.22)',
-    overflow: 'hidden',
-    ...(rect.openAbove
-      ? { bottom: window.innerHeight - rect.triggerTop, maxHeight: rect.triggerTop - 8 }
-      : { top: rect.triggerBottom + 2, maxHeight: window.innerHeight - rect.triggerBottom - 8 }
-    ),
-  } : {}
-
-  const dropdown = open && rect ? createPortal(
+  const dropdown = open ? createPortal(
     <div ref={dropRef} style={dropStyle}>
       <div style={{ padding: '8px 10px', borderBottom: '0.5px solid var(--color-border-tertiary)' }}>
-        <input autoFocus value={search} onChange={e => setSearch(e.target.value)}
+        <input
+          autoFocus
+          value={search}
+          onChange={e => setSearch(e.target.value)}
           placeholder="Szukaj po nazwie, adresie, NIP..."
           style={{ ...iStyle, fontSize: 12, padding: '5px 8px' }}
-          onKeyDown={e => e.key === 'Escape' && setOpen(false)} />
+          onKeyDown={e => e.key === 'Escape' && setOpen(false)}
+        />
       </div>
       <div style={{ overflowY: 'auto', maxHeight: 260 }}>
         {filtered.length === 0
@@ -149,7 +183,8 @@ export function BuyerCombo({ value, buyers, onSelect, placeholder }) {
                 background: b.name === value ? 'var(--color-background-secondary)' : 'transparent',
               }}
               onMouseEnter={e => e.currentTarget.style.background = 'var(--color-background-secondary)'}
-              onMouseLeave={e => e.currentTarget.style.background = b.name === value ? 'var(--color-background-secondary)' : 'transparent'}>
+              onMouseLeave={e => e.currentTarget.style.background = b.name === value ? 'var(--color-background-secondary)' : 'transparent'}
+            >
               <div style={{ fontWeight: 500, fontSize: 13, marginBottom: 2 }}>{b.name}</div>
               {b.address && <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginBottom: 1 }}>📍 {b.address}</div>}
               <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
@@ -165,7 +200,8 @@ export function BuyerCombo({ value, buyers, onSelect, placeholder }) {
           onMouseDown={e => { e.preventDefault(); onSelect(null); setOpen(false); setSearch('') }}
           style={{ padding: '8px 14px', fontSize: 12, color: '#a32d2d', cursor: 'pointer', borderTop: '0.5px solid var(--color-border-tertiary)', textAlign: 'center' }}
           onMouseEnter={e => e.currentTarget.style.background = '#fcebeb'}
-          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+        >
           ✕ Wyczyść wybór
         </div>
       )}
@@ -175,12 +211,15 @@ export function BuyerCombo({ value, buyers, onSelect, placeholder }) {
 
   return (
     <>
-      <div ref={triggerRef} onClick={() => { setOpen(v => !v); setSearch('') }}
+      <div
+        ref={triggerRef}
+        onClick={handleToggle}
         style={{
           ...iStyle, cursor: 'pointer', display: 'flex',
           justifyContent: 'space-between', alignItems: 'center',
           minHeight: selected ? 64 : 36, userSelect: 'none',
-        }}>
+        }}
+      >
         {selected ? (
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontWeight: 500, fontSize: 13, marginBottom: 1 }}>{selected.name}</div>
