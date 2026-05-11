@@ -87,7 +87,9 @@ export async function updateBuyer(id, buyer) {
       nip:              buyer.nip || '',
       delivery_address: buyer.deliveryAddress || '',
     })
-    .eq('id', id).select().single()
+    .eq('id', id)
+    .select()
+    .single()
   if (error) throw error
   return data
 }
