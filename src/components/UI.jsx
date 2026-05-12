@@ -55,38 +55,6 @@ export function Toggle({ options, value, onChange }) {
   )
 }
 
-function useDropdownRect(ref, open) {
-  const [rect, setRect] = useState(null)
-  const update = useCallback(() => {
-    if (!ref.current) return
-    const r = ref.current.getBoundingClientRect()
-    const spaceBelow = window.innerHeight - r.bottom
-    const spaceAbove = r.top
-    const dropH = 340
-    setRect({
-      triggerBottom: r.bottom,
-      triggerTop: r.top,
-      left: r.left,
-      width: r.width,
-      openAbove: spaceBelow < dropH && spaceAbove > spaceBelow,
-      dropH,
-    })
-  }, [ref])
-
-  useEffect(() => {
-    if (!open) { setRect(null); return }
-    update()
-    window.addEventListener('scroll', update, true)
-    window.addEventListener('resize', update)
-    return () => {
-      window.removeEventListener('scroll', update, true)
-      window.removeEventListener('resize', update)
-    }
-  }, [open, update])
-
-  return rect
-}
-
 export function BuyerCombo({ value, buyers, onSelect, placeholder }) {
   const [mode, setMode] = useState('search')
   const [search, setSearch] = useState('')
@@ -138,13 +106,11 @@ export function BuyerCombo({ value, buyers, onSelect, placeholder }) {
 
   return (
     <div>
-      {/* Przełącznik trybu */}
       <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
         <button onClick={() => switchMode('search')} style={btnStyle(mode === 'search')}>🔍 Szukaj / wpisz</button>
         <button onClick={() => switchMode('manual')} style={btnStyle(mode === 'manual')}>✏️ Ręcznie</button>
       </div>
 
-      {/* TRYB: szukaj z datalist */}
       {mode === 'search' && (
         <div>
           <datalist id={listId}>
@@ -172,7 +138,6 @@ export function BuyerCombo({ value, buyers, onSelect, placeholder }) {
         </div>
       )}
 
-      {/* TRYB: ręczny */}
       {mode === 'manual' && (
         <div>
           <input
@@ -337,22 +302,22 @@ export function ImportModal({ type, onImport, onClose }) {
   const fileRef = useRef()
 
   const HEADERS = {
-    buyers:    ['name', 'address', 'nip', 'deliveryAddress'],
-    products:  ['code', 'nameEn', 'namePl'],
+    buyers:     ['name', 'address', 'nip', 'deliveryAddress'],
+    products:   ['code', 'nameEn', 'namePl'],
     packagings: ['namePl', 'nameEn', 'bagKg', 'bagsPerPallet'],
   }
   const LABELS = {
-    buyers:    ['Nazwa firmy', 'Adres siedziby', 'NIP', 'Adres dostawy'],
-    products:  ['Kod produktu', 'Nazwa EN', 'Nazwa PL'],
+    buyers:     ['Nazwa firmy', 'Adres siedziby', 'NIP', 'Adres dostawy'],
+    products:   ['Kod produktu', 'Nazwa EN', 'Nazwa PL'],
     packagings: ['Nazwa PL', 'Nazwa EN', 'Waga szt. (kg)', 'Szt./paleta'],
   }
   const EXAMPLES = {
-    buyers:    'OHO GROUP UAB;Jiesios G.2 Kauno Lithuania;123-456-789;ul. Dostawcza 1',
-    products:  '4.1/P;Dried Potato Powder;Suszone Puree Ziemniaczane',
+    buyers:     'OHO GROUP UAB;Jiesios G.2 Kauno Lithuania;123-456-789;ul. Dostawcza 1',
+    products:   '4.1/P;Dried Potato Powder;Suszone Puree Ziemniaczane',
     packagings: 'Worek papierowy 25kg;Papper Bag 25kg;25;40',
   }
   const typeLabel = { buyers: 'Klientów', products: 'Produktów', packagings: 'Opakowań' }
-  const typeIcon =  { buyers: '👤', products: '📦', packagings: '🗃️' }
+  const typeIcon  = { buyers: '👤', products: '📦', packagings: '🗃️' }
 
   function parseCSV(text) {
     const lines = text.trim().split('\n').filter(l => l.trim())
@@ -368,9 +333,8 @@ export function ImportModal({ type, onImport, onClose }) {
 
   function tryDecode(buffer) {
     const bytes = new Uint8Array(buffer)
-    if (bytes[0] === 0xEF && bytes[1] === 0xBB && bytes[2] === 0xBF) {
+    if (bytes[0] === 0xEF && bytes[1] === 0xBB && bytes[2] === 0xBF)
       return new TextDecoder('UTF-8').decode(buffer)
-    }
     try {
       const text = new TextDecoder('UTF-8', { fatal: true }).decode(buffer)
       if (/[ąćęłńóśźżĄĆĘŁŃÓŚŹŻ]/.test(text)) return text
@@ -403,130 +367,132 @@ export function ImportModal({ type, onImport, onClose }) {
     reader.readAsArrayBuffer(file)
   }
 
+  const Step = ({ num, title }) => (
+    <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
+      <span style={{
+        background: '#185fa5', color: '#fff', borderRadius: '50%',
+        width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: 12, flexShrink: 0,
+      }}>{num}</span>
+      {title}
+    </div>
+  )
+
   return createPortal(
     <div style={{
       position: 'fixed', inset: 0,
-      background: 'rgba(0,0,0,0.6)',
+      background: 'rgba(0,0,0,0.75)',
       zIndex: 99998,
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       padding: 20,
     }}>
       <div style={{
-        background: 'var(--color-background-primary)',
+        background: '#ffffff',
         borderRadius: 16, width: '100%', maxWidth: 560,
         maxHeight: '90vh', overflowY: 'auto',
-        boxShadow: '0 20px 60px rgba(0,0,0,0.35)',
+        boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
+        position: 'relative', zIndex: 99999,
+        color: '#111',
       }}>
 
         {/* Header */}
         <div style={{
           padding: '20px 24px 16px',
-          borderBottom: '0.5px solid var(--color-border-tertiary)',
+          borderBottom: '1px solid #e8e8e8',
           display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          background: '#f8f9fa', borderRadius: '16px 16px 0 0',
         }}>
           <div>
-            <div style={{ fontSize: 18, fontWeight: 600 }}>
+            <div style={{ fontSize: 18, fontWeight: 600, color: '#111' }}>
               {typeIcon[type]} Import {typeLabel[type]}
             </div>
-            <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 2 }}>
+            <div style={{ fontSize: 12, color: '#666', marginTop: 2 }}>
               Wczytaj dane z pliku CSV lub Excel
             </div>
           </div>
           <button onClick={onClose} style={{
-            width: 32, height: 32, border: 'none', background: 'var(--color-background-secondary)',
-            borderRadius: 8, cursor: 'pointer', fontSize: 18, color: 'var(--color-text-secondary)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            width: 34, height: 34, border: '1px solid #ddd',
+            background: '#fff', borderRadius: 8, cursor: 'pointer',
+            fontSize: 18, color: '#666', display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>×</button>
         </div>
 
         <div style={{ padding: '20px 24px' }}>
 
-          {/* Krok 1 — Przygotuj plik */}
+          {/* Krok 1 */}
           <div style={{ marginBottom: 20 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ background: '#185fa5', color: '#fff', borderRadius: '50%', width: 22, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, flexShrink: 0 }}>1</span>
-              Przygotuj plik w Excelu
-            </div>
-            <div style={{ background: 'var(--color-background-secondary)', borderRadius: 10, padding: '12px 14px', fontSize: 12 }}>
-              <div style={{ marginBottom: 8, color: 'var(--color-text-secondary)' }}>
+            <Step num="1" title="Przygotuj plik w Excelu" />
+            <div style={{ background: '#f4f6f8', borderRadius: 10, padding: '12px 14px', fontSize: 12, color: '#333' }}>
+              <div style={{ marginBottom: 8, color: '#555' }}>
                 Kolumny w kolejności (rozdzielnik: <strong>średnik</strong> lub przecinek):
               </div>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
                 {LABELS[type].map((l, i) => (
                   <span key={l} style={{
-                    background: 'var(--color-background-primary)',
-                    border: '0.5px solid var(--color-border-secondary)',
-                    borderRadius: 6, padding: '3px 8px', fontSize: 11, fontWeight: 500,
+                    background: '#fff', border: '1px solid #ddd',
+                    borderRadius: 6, padding: '3px 8px', fontSize: 11, fontWeight: 500, color: '#333',
                   }}>
                     {i + 1}. {l}
                   </span>
                 ))}
               </div>
-              <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginBottom: 6 }}>Przykładowy wiersz:</div>
+              <div style={{ fontSize: 11, color: '#777', marginBottom: 4 }}>Przykładowy wiersz:</div>
               <div style={{
-                fontFamily: 'monospace', fontSize: 11,
-                background: 'var(--color-background-primary)',
-                border: '0.5px solid var(--color-border-tertiary)',
-                borderRadius: 6, padding: '6px 10px',
-                wordBreak: 'break-all',
+                fontFamily: 'monospace', fontSize: 11, color: '#333',
+                background: '#fff', border: '1px solid #e0e0e0',
+                borderRadius: 6, padding: '6px 10px', wordBreak: 'break-all',
               }}>
                 {EXAMPLES[type]}
               </div>
             </div>
           </div>
 
-          {/* Krok 2 — Zapisz jako CSV */}
+          {/* Krok 2 */}
           <div style={{ marginBottom: 20 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ background: '#185fa5', color: '#fff', borderRadius: '50%', width: 22, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, flexShrink: 0 }}>2</span>
-              Zapisz jako CSV z polskimi znakami
-            </div>
-            <div style={{ background: '#fff8e1', border: '0.5px solid #f0c040', borderRadius: 10, padding: '12px 14px', fontSize: 12 }}>
-              <div style={{ fontWeight: 500, marginBottom: 6 }}>💡 Aby zachować polskie znaki (ą, ę, ó, ś...):</div>
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-                <span style={{ background: '#185fa5', color: '#fff', borderRadius: 4, padding: '1px 6px', fontSize: 11, whiteSpace: 'nowrap', flexShrink: 0 }}>Excel</span>
-                <span style={{ color: '#555' }}>
-                  Plik → <strong>Zapisz jako</strong> → wybierz typ: <strong>CSV UTF-8 (z BOM) (*.csv)</strong>
-                </span>
+            <Step num="2" title="Zapisz jako CSV z polskimi znakami" />
+            <div style={{ background: '#fffbea', border: '1px solid #f0c040', borderRadius: 10, padding: '12px 14px', fontSize: 12 }}>
+              <div style={{ fontWeight: 500, marginBottom: 8, color: '#5a4000' }}>
+                💡 Aby zachować polskie znaki (ą, ę, ó, ś...):
               </div>
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginTop: 6 }}>
-                <span style={{ background: '#0f6e56', color: '#fff', borderRadius: 4, padding: '1px 6px', fontSize: 11, whiteSpace: 'nowrap', flexShrink: 0 }}>Sheets</span>
-                <span style={{ color: '#555' }}>
-                  Plik → <strong>Pobierz</strong> → <strong>Wartości rozdzielane przecinkami (.csv)</strong>
-                </span>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 6 }}>
+                <span style={{ background: '#185fa5', color: '#fff', borderRadius: 4, padding: '2px 7px', fontSize: 11, whiteSpace: 'nowrap', flexShrink: 0 }}>Excel</span>
+                <span style={{ color: '#444' }}>Plik → <strong>Zapisz jako</strong> → typ: <strong>CSV UTF-8 (z BOM) (*.csv)</strong></span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                <span style={{ background: '#0f6e56', color: '#fff', borderRadius: 4, padding: '2px 7px', fontSize: 11, whiteSpace: 'nowrap', flexShrink: 0 }}>Sheets</span>
+                <span style={{ color: '#444' }}>Plik → <strong>Pobierz</strong> → <strong>Wartości rozdzielane przecinkami (.csv)</strong></span>
               </div>
             </div>
           </div>
 
-          {/* Krok 3 — Wczytaj plik */}
+          {/* Krok 3 */}
           <div style={{ marginBottom: 20 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ background: '#185fa5', color: '#fff', borderRadius: '50%', width: 22, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, flexShrink: 0 }}>3</span>
-              Wczytaj plik
-            </div>
+            <Step num="3" title="Wczytaj plik" />
             <input ref={fileRef} type="file" accept=".csv,.txt" onChange={handleFile} style={{ display: 'none' }} />
             <button
               onClick={() => fileRef.current?.click()}
               style={{
-                width: '100%', padding: '12px', border: '2px dashed var(--color-border-secondary)',
-                borderRadius: 10, background: 'var(--color-background-secondary)',
-                cursor: 'pointer', fontSize: 13, color: 'var(--color-text-secondary)',
+                width: '100%', padding: '14px',
+                border: '2px dashed #ccc', borderRadius: 10,
+                background: '#fafafa', cursor: 'pointer',
+                fontSize: 13, color: '#555',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                transition: 'border-color 0.15s',
               }}
               onMouseEnter={e => e.currentTarget.style.borderColor = '#185fa5'}
-              onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--color-border-secondary)'}
+              onMouseLeave={e => e.currentTarget.style.borderColor = '#ccc'}
             >
               📂 <span>Kliknij aby wybrać plik CSV</span>
             </button>
 
             {error && (
-              <div style={{ marginTop: 10, background: '#fcebeb', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: '#a32d2d' }}>
+              <div style={{ marginTop: 10, background: '#fdecea', border: '1px solid #f5c6c6', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: '#b71c1c' }}>
                 ⚠ {error}
               </div>
             )}
 
             {rows.length > 0 && !error && (
-              <div style={{ marginTop: 10, background: '#e8f5e9', borderRadius: 8, padding: '8px 14px', fontSize: 12, color: '#1b5e20', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ marginTop: 10, background: '#e8f5e9', border: '1px solid #a5d6a7', borderRadius: 8, padding: '8px 14px', fontSize: 12, color: '#1b5e20', display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span style={{ fontSize: 16 }}>✓</span>
                 <span>Wczytano <strong>{rows.length} wierszy</strong> — gotowe do importu</span>
               </div>
@@ -536,23 +502,23 @@ export function ImportModal({ type, onImport, onClose }) {
           {/* Podgląd */}
           {preview.length > 0 && (
             <div style={{ marginBottom: 20 }}>
-              <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--color-text-secondary)', marginBottom: 8 }}>
+              <div style={{ fontSize: 12, fontWeight: 500, color: '#555', marginBottom: 8 }}>
                 Podgląd pierwszych {preview.length} wierszy:
               </div>
-              <div style={{ overflowX: 'auto', borderRadius: 8, border: '0.5px solid var(--color-border-tertiary)' }}>
+              <div style={{ overflowX: 'auto', borderRadius: 8, border: '1px solid #e0e0e0' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
                   <thead>
-                    <tr style={{ background: 'var(--color-background-secondary)' }}>
+                    <tr style={{ background: '#f4f6f8' }}>
                       {LABELS[type].map(l => (
-                        <th key={l} style={{ border: '0.5px solid var(--color-border-tertiary)', padding: '6px 10px', textAlign: 'left', fontWeight: 500 }}>{l}</th>
+                        <th key={l} style={{ border: '1px solid #e0e0e0', padding: '6px 10px', textAlign: 'left', fontWeight: 600, color: '#333' }}>{l}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
                     {preview.map((r, i) => (
-                      <tr key={i} style={{ background: i % 2 === 0 ? 'transparent' : 'var(--color-background-secondary)' }}>
+                      <tr key={i} style={{ background: i % 2 === 0 ? '#fff' : '#f9f9f9' }}>
                         {HEADERS[type].map(h => (
-                          <td key={h} style={{ border: '0.5px solid var(--color-border-tertiary)', padding: '5px 10px' }}>{r[h]}</td>
+                          <td key={h} style={{ border: '1px solid #e0e0e0', padding: '5px 10px', color: '#333' }}>{r[h]}</td>
                         ))}
                       </tr>
                     ))}
@@ -565,8 +531,9 @@ export function ImportModal({ type, onImport, onClose }) {
           {/* Przyciski */}
           <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
             <button onClick={onClose} style={{
-              padding: '9px 20px', border: '0.5px solid var(--color-border-tertiary)',
-              borderRadius: 9, background: 'transparent', cursor: 'pointer', fontSize: 13,
+              padding: '9px 20px', border: '1px solid #ddd',
+              borderRadius: 9, background: '#fff', cursor: 'pointer',
+              fontSize: 13, color: '#555',
             }}>
               Anuluj
             </button>
@@ -584,6 +551,7 @@ export function ImportModal({ type, onImport, onClose }) {
               {rows.length > 0 ? `✓ Importuj ${rows.length} wierszy` : 'Importuj'}
             </button>
           </div>
+
         </div>
       </div>
     </div>,
