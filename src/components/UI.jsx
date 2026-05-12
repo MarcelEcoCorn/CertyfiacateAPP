@@ -88,16 +88,7 @@ function useDropdownRect(ref, open) {
 }
 
 export function BuyerCombo({ value, buyers, onSelect, placeholder }) {
-  const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
-  const ref = useRef()
-
-  useEffect(() => {
-    if (!open) return
-    const h = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
-    document.addEventListener('mousedown', h)
-    return () => document.removeEventListener('mousedown', h)
-  }, [open])
 
   const filtered = (buyers || []).filter(b =>
     !search ||
@@ -105,108 +96,62 @@ export function BuyerCombo({ value, buyers, onSelect, placeholder }) {
     b.address?.toLowerCase().includes(search.toLowerCase()) ||
     b.nip?.toLowerCase().includes(search.toLowerCase())
   )
+
   const selected = (buyers || []).find(b => b.name === value)
 
+  function handleChange(e) {
+    const id = e.target.value
+    if (!id) { onSelect(null); return }
+    const b = buyers.find(b => String(b.id) === id)
+    if (b) onSelect(b)
+  }
+
   return (
-    <div ref={ref} style={{ position: 'relative' }}>
-      {/* Trigger */}
-      <div
-        onClick={() => { setOpen(v => !v); setSearch('') }}
+    <div>
+      {/* Pole wyszukiwania */}
+      <input
+        value={search}
+        onChange={e => setSearch(e.target.value)}
+        placeholder="🔍 Szukaj klienta po nazwie, NIP, adresie..."
+        style={{ ...iStyle, marginBottom: 6 }}
+      />
+
+      {/* Natywny select — zawsze na wierzchu, zawsze czytelny */}
+      <select
+        value={selected ? String(selected.id) : ''}
+        onChange={handleChange}
+        size={Math.min(filtered.length + 1, 6)}
         style={{
-          ...iStyle, cursor: 'pointer', display: 'flex',
-          justifyContent: 'space-between', alignItems: 'center',
-          minHeight: selected ? 64 : 36, userSelect: 'none',
-          position: 'relative', zIndex: open ? 10001 : 1,
+          ...iStyle,
+          height: 'auto',
+          padding: 0,
+          overflow: 'auto',
         }}
       >
-        {selected ? (
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontWeight: 500, fontSize: 13, marginBottom: 1 }}>{selected.name}</div>
-            {selected.address && (
-              <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                📍 {selected.address}
-              </div>
-            )}
-            <div style={{ display: 'flex', gap: 12 }}>
-              {selected.nip && <div style={{ fontSize: 11, color: 'var(--color-text-secondary)' }}>🏷 {selected.nip}</div>}
-              {selected.delivery_address && (
-                <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  🚚 {selected.delivery_address}
-                </div>
-              )}
-            </div>
-          </div>
-        ) : (
-          <span style={{ color: 'var(--color-text-secondary)', fontSize: 13 }}>
-            {placeholder || 'Wybierz klienta...'}
-          </span>
-        )}
-        <span style={{ fontSize: 10, marginLeft: 8, color: 'var(--color-text-secondary)', flexShrink: 0 }}>
-          {open ? '▲' : '▼'}
-        </span>
-      </div>
+        <option value="">— {placeholder || 'Wybierz klienta'} —</option>
+        {filtered.map(b => (
+          <option key={b.id} value={String(b.id)}>
+            {b.name}{b.nip ? `  ·  NIP: ${b.nip}` : ''}{b.address ? `  ·  ${b.address}` : ''}
+          </option>
+        ))}
+      </select>
 
-      {/* Dropdown — ABSOLUTNY względem rodzica, POWYŻEJ triggera */}
-      {open && (
+      {/* Wybrany klient — szczegóły */}
+      {selected && (
         <div style={{
-          position: 'absolute',
-          bottom: '100%',
-          left: 0, right: 0,
-          marginBottom: 2,
-          zIndex: 10000,
-          background: 'var(--color-background-primary)',
-          border: '1px solid var(--color-border-secondary)',
-          borderRadius: 8,
-          boxShadow: '0 -8px 32px rgba(0,0,0,0.18)',
-          overflow: 'hidden',
+          marginTop: 6, padding: '8px 12px',
+          background: 'var(--color-background-secondary)',
+          borderRadius: 8, fontSize: 12,
         }}>
-          {/* Search */}
-          <div style={{ padding: '8px 10px', borderBottom: '0.5px solid var(--color-border-tertiary)' }}>
-            <input
-              autoFocus
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Szukaj po nazwie, adresie, NIP..."
-              style={{ ...iStyle, fontSize: 12, padding: '5px 8px' }}
-              onKeyDown={e => e.key === 'Escape' && setOpen(false)}
-            />
-          </div>
-          {/* List */}
-          <div style={{ maxHeight: 280, overflowY: 'auto' }}>
-            {filtered.length === 0
-              ? <div style={{ padding: '14px 12px', fontSize: 12, color: 'var(--color-text-secondary)', textAlign: 'center' }}>Brak wyników</div>
-              : filtered.map(b => (
-                <div key={b.id}
-                  onMouseDown={e => { e.preventDefault(); onSelect(b); setOpen(false); setSearch('') }}
-                  style={{
-                    padding: '10px 14px', cursor: 'pointer',
-                    borderBottom: '0.5px solid var(--color-border-tertiary)',
-                    background: b.name === value ? 'var(--color-background-secondary)' : 'transparent',
-                  }}
-                  onMouseEnter={e => e.currentTarget.style.background = 'var(--color-background-secondary)'}
-                  onMouseLeave={e => e.currentTarget.style.background = b.name === value ? 'var(--color-background-secondary)' : 'transparent'}
-                >
-                  <div style={{ fontWeight: 500, fontSize: 13, marginBottom: 2 }}>{b.name}</div>
-                  {b.address && <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginBottom: 1 }}>📍 {b.address}</div>}
-                  <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-                    {b.nip && <div style={{ fontSize: 11, color: 'var(--color-text-secondary)' }}>🏷 NIP: {b.nip}</div>}
-                    {b.delivery_address && <div style={{ fontSize: 11, color: 'var(--color-text-secondary)' }}>🚚 {b.delivery_address}</div>}
-                  </div>
-                </div>
-              ))
-            }
-          </div>
-          {/* Clear */}
-          {value && (
-            <div
-              onMouseDown={e => { e.preventDefault(); onSelect(null); setOpen(false); setSearch('') }}
-              style={{ padding: '8px 14px', fontSize: 12, color: '#a32d2d', cursor: 'pointer', borderTop: '0.5px solid var(--color-border-tertiary)', textAlign: 'center' }}
-              onMouseEnter={e => e.currentTarget.style.background = '#fcebeb'}
-              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-            >
-              ✕ Wyczyść wybór
-            </div>
-          )}
+          <div style={{ fontWeight: 500, marginBottom: 2 }}>{selected.name}</div>
+          {selected.address && <div style={{ color: 'var(--color-text-secondary)' }}>📍 {selected.address}</div>}
+          {selected.nip && <div style={{ color: 'var(--color-text-secondary)' }}>🏷 NIP: {selected.nip}</div>}
+          {selected.delivery_address && <div style={{ color: 'var(--color-text-secondary)' }}>🚚 {selected.delivery_address}</div>}
+          <button
+            onClick={() => onSelect(null)}
+            style={{ marginTop: 4, fontSize: 11, border: 'none', background: 'transparent', cursor: 'pointer', color: '#a32d2d', padding: 0 }}>
+            ✕ Wyczyść wybór
+          </button>
         </div>
       )}
     </div>
