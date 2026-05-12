@@ -93,7 +93,6 @@ export function BuyerCombo({ value, buyers, onSelect, placeholder }) {
   const [manualName, setManualName] = useState('')
 
   const selected = (buyers || []).find(b => b.name === value)
-
   const listId = 'buyers-datalist'
 
   function handleDatalistChange(e) {
@@ -103,13 +102,6 @@ export function BuyerCombo({ value, buyers, onSelect, placeholder }) {
     if (match) onSelect(match)
     else if (typed) onSelect({ name: typed, address: '', nip: '', delivery_address: '' })
     else onSelect(null)
-  }
-
-  function handleSelectChange(e) {
-    const id = e.target.value
-    if (!id) { onSelect(null); return }
-    const b = buyers.find(b => String(b.id) === id)
-    if (b) onSelect(b)
   }
 
   function handleManual(v) {
@@ -149,7 +141,6 @@ export function BuyerCombo({ value, buyers, onSelect, placeholder }) {
       {/* Przełącznik trybu */}
       <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
         <button onClick={() => switchMode('search')} style={btnStyle(mode === 'search')}>🔍 Szukaj / wpisz</button>
-        <button onClick={() => switchMode('list')} style={btnStyle(mode === 'list')}>📋 Lista</button>
         <button onClick={() => switchMode('manual')} style={btnStyle(mode === 'manual')}>✏️ Ręcznie</button>
       </div>
 
@@ -178,25 +169,6 @@ export function BuyerCombo({ value, buyers, onSelect, placeholder }) {
               <button onClick={() => { onSelect(null); setSearch('') }} style={{ marginLeft: 8, fontSize: 11, border: 'none', background: 'transparent', cursor: 'pointer', color: '#a32d2d', padding: 0 }}>✕</button>
             </div>
           )}
-        </div>
-      )}
-
-      {/* TRYB: lista rozwijana */}
-      {mode === 'list' && (
-        <div>
-          <select
-            value={selected ? String(selected.id) : ''}
-            onChange={handleSelectChange}
-            style={{ ...iStyle }}
-          >
-            <option value="">— Wybierz klienta —</option>
-            {(buyers || []).map(b => (
-              <option key={b.id} value={String(b.id)}>
-                {b.name}{b.nip ? ` · NIP: ${b.nip}` : ''}{b.address ? ` · ${b.address}` : ''}
-              </option>
-            ))}
-          </select>
-          {selected && <ClientCard client={selected} />}
         </div>
       )}
 
