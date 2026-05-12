@@ -342,11 +342,17 @@ export function ImportModal({ type, onImport, onClose }) {
     packagings: ['namePl', 'nameEn', 'bagKg', 'bagsPerPallet'],
   }
   const LABELS = {
-    buyers:    ['Nazwa', 'Adres siedziby', 'NIP', 'Adres dostawy'],
-    products:  ['Kod', 'Nazwa EN', 'Nazwa PL'],
+    buyers:    ['Nazwa firmy', 'Adres siedziby', 'NIP', 'Adres dostawy'],
+    products:  ['Kod produktu', 'Nazwa EN', 'Nazwa PL'],
     packagings: ['Nazwa PL', 'Nazwa EN', 'Waga szt. (kg)', 'Szt./paleta'],
   }
+  const EXAMPLES = {
+    buyers:    'OHO GROUP UAB;Jiesios G.2 Kauno Lithuania;123-456-789;ul. Dostawcza 1',
+    products:  '4.1/P;Dried Potato Powder;Suszone Puree Ziemniaczane',
+    packagings: 'Worek papierowy 25kg;Papper Bag 25kg;25;40',
+  }
   const typeLabel = { buyers: 'Klientów', products: 'Produktów', packagings: 'Opakowań' }
+  const typeIcon =  { buyers: '👤', products: '📦', packagings: '🗃️' }
 
   function parseCSV(text) {
     const lines = text.trim().split('\n').filter(l => l.trim())
@@ -361,27 +367,22 @@ export function ImportModal({ type, onImport, onClose }) {
   }
 
   function tryDecode(buffer) {
-    // Sprawdź BOM UTF-8
     const bytes = new Uint8Array(buffer)
     if (bytes[0] === 0xEF && bytes[1] === 0xBB && bytes[2] === 0xBF) {
       return new TextDecoder('UTF-8').decode(buffer)
     }
-    // Próbuj UTF-8 strict
     try {
       const text = new TextDecoder('UTF-8', { fatal: true }).decode(buffer)
       if (/[ąćęłńóśźżĄĆĘŁŃÓŚŹŻ]/.test(text)) return text
     } catch {}
-    // Próbuj Windows-1250 (Excel Polska)
     try {
       const text = new TextDecoder('windows-1250', { fatal: true }).decode(buffer)
       if (/[ąćęłńóśźżĄĆĘŁŃÓŚŹŻ]/.test(text)) return text
     } catch {}
-    // Próbuj ISO-8859-2
     try {
       const text = new TextDecoder('iso-8859-2', { fatal: true }).decode(buffer)
       if (/[ąćęłńóśźżĄĆĘŁŃÓŚŹŻ]/.test(text)) return text
     } catch {}
-    // Fallback windows-1250 bez strict
     return new TextDecoder('windows-1250').decode(buffer)
   }
 
@@ -392,18 +393,12 @@ export function ImportModal({ type, onImport, onClose }) {
     const reader = new FileReader()
     reader.onload = ev => {
       try {
-        const buffer = ev.target.result
-        const text = tryDecode(buffer)
+        const text = tryDecode(ev.target.result)
         const parsed = parseCSV(text)
-        if (!parsed.length) {
-          setError('Nie znaleziono danych. Upewnij się że plik jest w formacie CSV.')
-          return
-        }
+        if (!parsed.length) { setError('Nie znaleziono danych. Sprawdź format pliku.'); return }
         setRows(parsed)
         setPreview(parsed.slice(0, 5))
-      } catch (err) {
-        setError('Błąd parsowania pliku: ' + err.message)
-      }
+      } catch (err) { setError('Błąd parsowania: ' + err.message) }
     }
     reader.readAsArrayBuffer(file)
   }
@@ -411,109 +406,184 @@ export function ImportModal({ type, onImport, onClose }) {
   return createPortal(
     <div style={{
       position: 'fixed', inset: 0,
-      background: 'rgba(0,0,0,0.5)',
+      background: 'rgba(0,0,0,0.6)',
       zIndex: 99998,
       display: 'flex', alignItems: 'center', justifyContent: 'center',
+      padding: 20,
     }}>
       <div style={{
         background: 'var(--color-background-primary)',
-        borderRadius: 12, padding: 24,
-        width: 580, maxHeight: '80vh', overflowY: 'auto',
-        boxShadow: '0 16px 48px rgba(0,0,0,0.3)',
+        borderRadius: 16, width: '100%', maxWidth: 560,
+        maxHeight: '90vh', overflowY: 'auto',
+        boxShadow: '0 20px 60px rgba(0,0,0,0.35)',
       }}>
+
         {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <div style={{ fontSize: 16, fontWeight: 500 }}>📥 Import {typeLabel[type]}</div>
-          <button onClick={onClose} style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 20, color: 'var(--color-text-secondary)' }}>×</button>
-        </div>
-
-        {/* Format info */}
-        <div style={{ background: 'var(--color-background-secondary)', borderRadius: 8, padding: '10px 14px', marginBottom: 14, fontSize: 12, color: 'var(--color-text-secondary)' }}>
-          <div style={{ fontWeight: 500, marginBottom: 4 }}>Format pliku CSV — kolumny w kolejności:</div>
-          <div style={{ fontFamily: 'monospace', fontSize: 11, background: 'var(--color-background-primary)', padding: '4px 8px', borderRadius: 6, marginBottom: 6 }}>
-            {LABELS[type].join(' ; ')}
-          </div>
-          <div>Rozdzielnik: przecinek lub średnik. Pierwsza linia może być nagłówkiem.</div>
-          <div style={{ marginTop: 6, color: '#856404', background: '#fff3cd', borderRadius: 6, padding: '4px 8px' }}>
-            💡 Aby zachować polskie znaki: w Excelu wybierz <strong>Plik → Zapisz jako → CSV UTF-8 (z BOM)</strong>
-          </div>
-        </div>
-
-        {/* File picker */}
-        <div style={{ marginBottom: 14 }}>
-          <input ref={fileRef} type="file" accept=".csv,.txt" onChange={handleFile} style={{ display: 'none' }} />
-          <button
-            onClick={() => fileRef.current?.click()}
-            style={{ padding: '8px 16px', border: '0.5px solid var(--color-border-secondary)', borderRadius: 8, background: 'transparent', cursor: 'pointer', fontSize: 13 }}>
-            📂 Wybierz plik CSV
-          </button>
-          {rows.length > 0 && (
-            <span style={{ marginLeft: 10, fontSize: 13, color: '#0f6e56', fontWeight: 500 }}>
-              ✓ {rows.length} wierszy gotowych do importu
-            </span>
-          )}
-        </div>
-
-        {/* Error */}
-        {error && (
-          <div style={{ background: '#fcebeb', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: '#a32d2d', marginBottom: 12 }}>
-            ⚠ {error}
-          </div>
-        )}
-
-        {/* Preview table */}
-        {preview.length > 0 && (
-          <div style={{ marginBottom: 14 }}>
-            <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginBottom: 6 }}>
-              Podgląd (pierwsze {preview.length} wierszy):
+        <div style={{
+          padding: '20px 24px 16px',
+          borderBottom: '0.5px solid var(--color-border-tertiary)',
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        }}>
+          <div>
+            <div style={{ fontSize: 18, fontWeight: 600 }}>
+              {typeIcon[type]} Import {typeLabel[type]}
             </div>
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
-                <thead>
-                  <tr>
-                    {LABELS[type].map(l => (
-                      <th key={l} style={{
-                        border: '0.5px solid var(--color-border-tertiary)',
-                        padding: '4px 8px',
-                        background: 'var(--color-background-secondary)',
-                        textAlign: 'left', fontWeight: 500,
-                      }}>{l}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {preview.map((r, i) => (
-                    <tr key={i}>
-                      {HEADERS[type].map(h => (
-                        <td key={h} style={{ border: '0.5px solid var(--color-border-tertiary)', padding: '4px 8px' }}>
-                          {r[h]}
-                        </td>
+            <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 2 }}>
+              Wczytaj dane z pliku CSV lub Excel
+            </div>
+          </div>
+          <button onClick={onClose} style={{
+            width: 32, height: 32, border: 'none', background: 'var(--color-background-secondary)',
+            borderRadius: 8, cursor: 'pointer', fontSize: 18, color: 'var(--color-text-secondary)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>×</button>
+        </div>
+
+        <div style={{ padding: '20px 24px' }}>
+
+          {/* Krok 1 — Przygotuj plik */}
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ background: '#185fa5', color: '#fff', borderRadius: '50%', width: 22, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, flexShrink: 0 }}>1</span>
+              Przygotuj plik w Excelu
+            </div>
+            <div style={{ background: 'var(--color-background-secondary)', borderRadius: 10, padding: '12px 14px', fontSize: 12 }}>
+              <div style={{ marginBottom: 8, color: 'var(--color-text-secondary)' }}>
+                Kolumny w kolejności (rozdzielnik: <strong>średnik</strong> lub przecinek):
+              </div>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
+                {LABELS[type].map((l, i) => (
+                  <span key={l} style={{
+                    background: 'var(--color-background-primary)',
+                    border: '0.5px solid var(--color-border-secondary)',
+                    borderRadius: 6, padding: '3px 8px', fontSize: 11, fontWeight: 500,
+                  }}>
+                    {i + 1}. {l}
+                  </span>
+                ))}
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginBottom: 6 }}>Przykładowy wiersz:</div>
+              <div style={{
+                fontFamily: 'monospace', fontSize: 11,
+                background: 'var(--color-background-primary)',
+                border: '0.5px solid var(--color-border-tertiary)',
+                borderRadius: 6, padding: '6px 10px',
+                wordBreak: 'break-all',
+              }}>
+                {EXAMPLES[type]}
+              </div>
+            </div>
+          </div>
+
+          {/* Krok 2 — Zapisz jako CSV */}
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ background: '#185fa5', color: '#fff', borderRadius: '50%', width: 22, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, flexShrink: 0 }}>2</span>
+              Zapisz jako CSV z polskimi znakami
+            </div>
+            <div style={{ background: '#fff8e1', border: '0.5px solid #f0c040', borderRadius: 10, padding: '12px 14px', fontSize: 12 }}>
+              <div style={{ fontWeight: 500, marginBottom: 6 }}>💡 Aby zachować polskie znaki (ą, ę, ó, ś...):</div>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                <span style={{ background: '#185fa5', color: '#fff', borderRadius: 4, padding: '1px 6px', fontSize: 11, whiteSpace: 'nowrap', flexShrink: 0 }}>Excel</span>
+                <span style={{ color: '#555' }}>
+                  Plik → <strong>Zapisz jako</strong> → wybierz typ: <strong>CSV UTF-8 (z BOM) (*.csv)</strong>
+                </span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginTop: 6 }}>
+                <span style={{ background: '#0f6e56', color: '#fff', borderRadius: 4, padding: '1px 6px', fontSize: 11, whiteSpace: 'nowrap', flexShrink: 0 }}>Sheets</span>
+                <span style={{ color: '#555' }}>
+                  Plik → <strong>Pobierz</strong> → <strong>Wartości rozdzielane przecinkami (.csv)</strong>
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Krok 3 — Wczytaj plik */}
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ background: '#185fa5', color: '#fff', borderRadius: '50%', width: 22, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, flexShrink: 0 }}>3</span>
+              Wczytaj plik
+            </div>
+            <input ref={fileRef} type="file" accept=".csv,.txt" onChange={handleFile} style={{ display: 'none' }} />
+            <button
+              onClick={() => fileRef.current?.click()}
+              style={{
+                width: '100%', padding: '12px', border: '2px dashed var(--color-border-secondary)',
+                borderRadius: 10, background: 'var(--color-background-secondary)',
+                cursor: 'pointer', fontSize: 13, color: 'var(--color-text-secondary)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+              }}
+              onMouseEnter={e => e.currentTarget.style.borderColor = '#185fa5'}
+              onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--color-border-secondary)'}
+            >
+              📂 <span>Kliknij aby wybrać plik CSV</span>
+            </button>
+
+            {error && (
+              <div style={{ marginTop: 10, background: '#fcebeb', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: '#a32d2d' }}>
+                ⚠ {error}
+              </div>
+            )}
+
+            {rows.length > 0 && !error && (
+              <div style={{ marginTop: 10, background: '#e8f5e9', borderRadius: 8, padding: '8px 14px', fontSize: 12, color: '#1b5e20', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 16 }}>✓</span>
+                <span>Wczytano <strong>{rows.length} wierszy</strong> — gotowe do importu</span>
+              </div>
+            )}
+          </div>
+
+          {/* Podgląd */}
+          {preview.length > 0 && (
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--color-text-secondary)', marginBottom: 8 }}>
+                Podgląd pierwszych {preview.length} wierszy:
+              </div>
+              <div style={{ overflowX: 'auto', borderRadius: 8, border: '0.5px solid var(--color-border-tertiary)' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+                  <thead>
+                    <tr style={{ background: 'var(--color-background-secondary)' }}>
+                      {LABELS[type].map(l => (
+                        <th key={l} style={{ border: '0.5px solid var(--color-border-tertiary)', padding: '6px 10px', textAlign: 'left', fontWeight: 500 }}>{l}</th>
                       ))}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {preview.map((r, i) => (
+                      <tr key={i} style={{ background: i % 2 === 0 ? 'transparent' : 'var(--color-background-secondary)' }}>
+                        {HEADERS[type].map(h => (
+                          <td key={h} style={{ border: '0.5px solid var(--color-border-tertiary)', padding: '5px 10px' }}>{r[h]}</td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Actions */}
-        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-          <button onClick={onClose} style={{ padding: '8px 16px', border: '0.5px solid var(--color-border-tertiary)', borderRadius: 8, background: 'transparent', cursor: 'pointer', fontSize: 13 }}>
-            Anuluj
-          </button>
-          <button
-            disabled={!rows.length}
-            onClick={() => { onImport(rows); onClose() }}
-            style={{
-              padding: '8px 20px',
-              background: rows.length ? '#0f6e56' : '#ccc',
-              color: '#fff', border: 'none', borderRadius: 8,
-              cursor: rows.length ? 'pointer' : 'not-allowed',
-              fontSize: 13, fontWeight: 500,
+          {/* Przyciski */}
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+            <button onClick={onClose} style={{
+              padding: '9px 20px', border: '0.5px solid var(--color-border-tertiary)',
+              borderRadius: 9, background: 'transparent', cursor: 'pointer', fontSize: 13,
             }}>
-            Importuj {rows.length > 0 ? `${rows.length} wierszy` : ''}
-          </button>
+              Anuluj
+            </button>
+            <button
+              disabled={!rows.length}
+              onClick={() => { onImport(rows); onClose() }}
+              style={{
+                padding: '9px 24px',
+                background: rows.length ? '#0f6e56' : '#ccc',
+                color: '#fff', border: 'none', borderRadius: 9,
+                cursor: rows.length ? 'pointer' : 'not-allowed',
+                fontSize: 13, fontWeight: 500,
+              }}
+            >
+              {rows.length > 0 ? `✓ Importuj ${rows.length} wierszy` : 'Importuj'}
+            </button>
+          </div>
         </div>
       </div>
     </div>,
