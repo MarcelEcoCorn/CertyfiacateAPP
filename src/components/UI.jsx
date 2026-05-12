@@ -89,72 +89,27 @@ function useDropdownRect(ref, open) {
 
 export function BuyerCombo({ value, buyers, onSelect, placeholder }) {
   const [mode, setMode] = useState('search')
-  const [manualName, setManualName] = useState('')
   const [search, setSearch] = useState('')
-  const [open, setOpen] = useState(false)
-  const [pos, setPos] = useState({ top: 0, left: 0, width: 300 })
-  const inputRef = useRef()
-  const dropRef = useRef()
-  const rafRef = useRef()
+  const [manualName, setManualName] = useState('')
 
   const selected = (buyers || []).find(b => b.name === value)
 
-  const suggestions = search.length > 0
-    ? (buyers || []).filter(b =>
-        b.name?.toLowerCase().includes(search.toLowerCase()) ||
-        b.nip?.toLowerCase().includes(search.toLowerCase()) ||
-        b.address?.toLowerCase().includes(search.toLowerCase())
-      ).slice(0, 8)
-    : (buyers || []).slice(0, 8)
+  const listId = 'buyers-datalist'
 
-  // Aktualizuj pozycję — uruchamiaj w pętli RAF gdy open
-  function updatePos() {
-    if (!inputRef.current) return
-    const r = inputRef.current.getBoundingClientRect()
-    const dropH = 320
-    const spaceBelow = window.innerHeight - r.bottom
-    const top = spaceBelow >= dropH || spaceBelow >= r.top
-      ? r.bottom + 2
-      : r.top - dropH - 2
-    setPos({ top, left: r.left, width: r.width })
+  function handleDatalistChange(e) {
+    const typed = e.target.value
+    setSearch(typed)
+    const match = (buyers || []).find(b => b.name === typed)
+    if (match) onSelect(match)
+    else if (typed) onSelect({ name: typed, address: '', nip: '', delivery_address: '' })
+    else onSelect(null)
   }
 
-  useEffect(() => {
-    if (!open) {
-      cancelAnimationFrame(rafRef.current)
-      return
-    }
-    function loop() {
-      updatePos()
-      rafRef.current = requestAnimationFrame(loop)
-    }
-    loop()
-    return () => cancelAnimationFrame(rafRef.current)
-  }, [open])
-
-  useEffect(() => {
-    if (!open) return
-    const h = e => {
-      if (inputRef.current?.contains(e.target)) return
-      if (dropRef.current?.contains(e.target)) return
-      setOpen(false)
-    }
-    document.addEventListener('mousedown', h)
-    return () => document.removeEventListener('mousedown', h)
-  }, [open])
-
-  function handleSearchChange(v) {
-    setSearch(v)
-    setOpen(true)
-    const exact = (buyers || []).find(b => b.name.toLowerCase() === v.toLowerCase())
-    if (exact) onSelect(exact)
-    else onSelect({ name: v, address: '', nip: '', delivery_address: '' })
-  }
-
-  function handleSuggestionClick(b) {
-    setSearch(b.name)
-    setOpen(false)
-    onSelect(b)
+  function handleSelectChange(e) {
+    const id = e.target.value
+    if (!id) { onSelect(null); return }
+    const b = buyers.find(b => String(b.id) === id)
+    if (b) onSelect(b)
   }
 
   function handleManual(v) {
@@ -162,15 +117,8 @@ export function BuyerCombo({ value, buyers, onSelect, placeholder }) {
     onSelect({ name: v, address: '', nip: '', delivery_address: '' })
   }
 
-  function switchToList() { setMode('list'); setSearch(''); setOpen(false); onSelect(null) }
-  function switchToSearch() { setMode('search'); setSearch(''); setOpen(false); onSelect(null) }
-  function switchToManual() { setMode('manual'); setManualName(''); setOpen(false); onSelect(null) }
-
-  function handleChange(e) {
-    const id = e.target.value
-    if (!id) { onSelect(null); return }
-    const b = buyers.find(b => String(b.id) === id)
-    if (b) onSelect(b)
+  function switchMode(m) {
+    setMode(m); setSearch(''); setManualName(''); onSelect(null)
   }
 
   const btnStyle = active => ({
@@ -182,104 +130,73 @@ export function BuyerCombo({ value, buyers, onSelect, placeholder }) {
     fontWeight: active ? 500 : 400,
   })
 
-  const dropdown = open && mode === 'search' ? createPortal(
-    <div ref={dropRef} style={{
-      position: 'fixed',
-      top: pos.top,
-      left: pos.left,
-      width: pos.width,
-      zIndex: 999999,
-      background: 'var(--color-background-primary)',
-      border: '1px solid var(--color-border-secondary)',
-      borderRadius: 8,
-      boxShadow: '0 4px 20px rgba(0,0,0,0.18)',
-      overflow: 'hidden',
-      maxHeight: 320,
-      overflowY: 'auto',
-    }}>
-      {suggestions.length === 0 && (
-        <div style={{ padding: '12px', fontSize: 12, color: 'var(--color-text-secondary)', textAlign: 'center' }}>Brak wyników</div>
-      )}
-      {suggestions.map(b => (
-        <div key={b.id}
-          onMouseDown={e => { e.preventDefault(); handleSuggestionClick(b) }}
-          style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: '0.5px solid var(--color-border-tertiary)' }}
-          onMouseEnter={e => e.currentTarget.style.background = 'var(--color-background-secondary)'}
-          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-        >
-          <div style={{ fontWeight: 500, fontSize: 13 }}>{b.name}</div>
-          <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-            {b.nip && <span>🏷 {b.nip}</span>}
-            {b.address && <span>📍 {b.address}</span>}
-          </div>
-        </div>
-      ))}
-      {search && !suggestions.find(b => b.name.toLowerCase() === search.toLowerCase()) && (
-        <div
-          onMouseDown={e => { e.preventDefault(); onSelect({ name: search, address: '', nip: '', delivery_address: '' }); setOpen(false) }}
-          style={{ padding: '8px 12px', cursor: 'pointer', fontSize: 12, color: 'var(--color-text-secondary)', borderTop: '0.5px solid var(--color-border-tertiary)' }}
-          onMouseEnter={e => e.currentTarget.style.background = 'var(--color-background-secondary)'}
-          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-        >
-          ➕ Użyj: <strong>"{search}"</strong>
-        </div>
-      )}
-    </div>,
-    document.body
-  ) : null
+  const ClientCard = ({ client }) => (
+    <div style={{ marginTop: 6, padding: '8px 12px', background: 'var(--color-background-secondary)', borderRadius: 8, fontSize: 12 }}>
+      <div style={{ fontWeight: 500, marginBottom: 2 }}>{client.name}</div>
+      {client.address && <div style={{ color: 'var(--color-text-secondary)' }}>📍 {client.address}</div>}
+      {client.nip && <div style={{ color: 'var(--color-text-secondary)' }}>🏷 NIP: {client.nip}</div>}
+      {client.delivery_address && <div style={{ color: 'var(--color-text-secondary)' }}>🚚 {client.delivery_address}</div>}
+      <button
+        onClick={() => { onSelect(null); setSearch(''); setManualName('') }}
+        style={{ marginTop: 4, fontSize: 11, border: 'none', background: 'transparent', cursor: 'pointer', color: '#a32d2d', padding: 0 }}>
+        ✕ Wyczyść
+      </button>
+    </div>
+  )
 
   return (
     <div>
+      {/* Przełącznik trybu */}
       <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
-        <button onClick={switchToSearch} style={btnStyle(mode === 'search')}>🔍 Szukaj / wpisz</button>
-        <button onClick={switchToList} style={btnStyle(mode === 'list')}>📋 Lista</button>
-        <button onClick={switchToManual} style={btnStyle(mode === 'manual')}>✏️ Ręcznie</button>
+        <button onClick={() => switchMode('search')} style={btnStyle(mode === 'search')}>🔍 Szukaj / wpisz</button>
+        <button onClick={() => switchMode('list')} style={btnStyle(mode === 'list')}>📋 Lista</button>
+        <button onClick={() => switchMode('manual')} style={btnStyle(mode === 'manual')}>✏️ Ręcznie</button>
       </div>
 
-      {/* TRYB: szukaj */}
+      {/* TRYB: szukaj z datalist */}
       {mode === 'search' && (
         <div>
+          <datalist id={listId}>
+            {(buyers || []).map(b => (
+              <option key={b.id} value={b.name}>
+                {b.nip ? `NIP: ${b.nip}` : ''} {b.address || ''}
+              </option>
+            ))}
+          </datalist>
           <input
-            ref={inputRef}
+            list={listId}
             value={search}
-            onChange={e => handleSearchChange(e.target.value)}
-            onFocus={() => { updatePos(); setOpen(true) }}
-            placeholder="Zacznij wpisywać nazwę, NIP lub adres..."
+            onChange={handleDatalistChange}
+            placeholder="Zacznij wpisywać nazwę klienta..."
             style={{ ...iStyle }}
           />
-          {dropdown}
-          {value && !open && (
-            <div style={{ marginTop: 6, padding: '8px 12px', background: 'var(--color-background-secondary)', borderRadius: 8, fontSize: 12 }}>
-              <div style={{ fontWeight: 500, marginBottom: 2 }}>{value}</div>
-              {selected?.address && <div style={{ color: 'var(--color-text-secondary)' }}>📍 {selected.address}</div>}
-              {selected?.nip && <div style={{ color: 'var(--color-text-secondary)' }}>🏷 NIP: {selected.nip}</div>}
-              {selected?.delivery_address && <div style={{ color: 'var(--color-text-secondary)' }}>🚚 {selected.delivery_address}</div>}
-              <button onClick={() => { onSelect(null); setSearch('') }} style={{ marginTop: 4, fontSize: 11, border: 'none', background: 'transparent', cursor: 'pointer', color: '#a32d2d', padding: 0 }}>✕ Wyczyść</button>
+          {selected && <ClientCard client={selected} />}
+          {value && !selected && value.trim() && (
+            <div style={{ marginTop: 6, padding: '6px 12px', background: 'var(--color-background-secondary)', borderRadius: 8, fontSize: 12 }}>
+              <span style={{ fontWeight: 500 }}>{value}</span>
+              <span style={{ color: 'var(--color-text-secondary)', marginLeft: 8, fontSize: 11 }}>(spoza bazy)</span>
+              <button onClick={() => { onSelect(null); setSearch('') }} style={{ marginLeft: 8, fontSize: 11, border: 'none', background: 'transparent', cursor: 'pointer', color: '#a32d2d', padding: 0 }}>✕</button>
             </div>
           )}
         </div>
       )}
 
-      {/* TRYB: lista */}
+      {/* TRYB: lista rozwijana */}
       {mode === 'list' && (
         <div>
-          <select value={selected ? String(selected.id) : ''} onChange={handleChange} style={{ ...iStyle }}>
-            <option value="">— {placeholder || 'Wybierz klienta'} —</option>
+          <select
+            value={selected ? String(selected.id) : ''}
+            onChange={handleSelectChange}
+            style={{ ...iStyle }}
+          >
+            <option value="">— Wybierz klienta —</option>
             {(buyers || []).map(b => (
               <option key={b.id} value={String(b.id)}>
                 {b.name}{b.nip ? ` · NIP: ${b.nip}` : ''}{b.address ? ` · ${b.address}` : ''}
               </option>
             ))}
           </select>
-          {selected && (
-            <div style={{ marginTop: 6, padding: '8px 12px', background: 'var(--color-background-secondary)', borderRadius: 8, fontSize: 12 }}>
-              <div style={{ fontWeight: 500, marginBottom: 2 }}>{selected.name}</div>
-              {selected.address && <div style={{ color: 'var(--color-text-secondary)' }}>📍 {selected.address}</div>}
-              {selected.nip && <div style={{ color: 'var(--color-text-secondary)' }}>🏷 NIP: {selected.nip}</div>}
-              {selected.delivery_address && <div style={{ color: 'var(--color-text-secondary)' }}>🚚 {selected.delivery_address}</div>}
-              <button onClick={() => onSelect(null)} style={{ marginTop: 4, fontSize: 11, border: 'none', background: 'transparent', cursor: 'pointer', color: '#a32d2d', padding: 0 }}>✕ Wyczyść</button>
-            </div>
-          )}
+          {selected && <ClientCard client={selected} />}
         </div>
       )}
 
