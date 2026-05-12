@@ -88,11 +88,14 @@ function useDropdownRect(ref, open) {
 }
 
 export function BuyerCombo({ value, buyers, onSelect, placeholder }) {
-  const [mode, setMode] = useState('list')
+  const [mode, setMode] = useState('search')
   const [manualName, setManualName] = useState('')
   const [search, setSearch] = useState('')
-  const [showSuggestions, setShowSuggestions] = useState(false)
-  const searchRef = useRef()
+  const [open, setOpen] = useState(false)
+  const [pos, setPos] = useState({ top: 0, left: 0, width: 300 })
+  const inputRef = useRef()
+  const dropRef = useRef()
+  const rafRef = useRef()
 
   const selected = (buyers || []).find(b => b.name === value)
 
@@ -102,19 +105,47 @@ export function BuyerCombo({ value, buyers, onSelect, placeholder }) {
         b.nip?.toLowerCase().includes(search.toLowerCase()) ||
         b.address?.toLowerCase().includes(search.toLowerCase())
       ).slice(0, 8)
-    : []
+    : (buyers || []).slice(0, 8)
 
-  function handleChange(e) {
-    const id = e.target.value
-    if (!id) { onSelect(null); return }
-    const b = buyers.find(b => String(b.id) === id)
-    if (b) onSelect(b)
+  // Aktualizuj pozycję — uruchamiaj w pętli RAF gdy open
+  function updatePos() {
+    if (!inputRef.current) return
+    const r = inputRef.current.getBoundingClientRect()
+    const dropH = 320
+    const spaceBelow = window.innerHeight - r.bottom
+    const top = spaceBelow >= dropH || spaceBelow >= r.top
+      ? r.bottom + 2
+      : r.top - dropH - 2
+    setPos({ top, left: r.left, width: r.width })
   }
+
+  useEffect(() => {
+    if (!open) {
+      cancelAnimationFrame(rafRef.current)
+      return
+    }
+    function loop() {
+      updatePos()
+      rafRef.current = requestAnimationFrame(loop)
+    }
+    loop()
+    return () => cancelAnimationFrame(rafRef.current)
+  }, [open])
+
+  useEffect(() => {
+    if (!open) return
+    const h = e => {
+      if (inputRef.current?.contains(e.target)) return
+      if (dropRef.current?.contains(e.target)) return
+      setOpen(false)
+    }
+    document.addEventListener('mousedown', h)
+    return () => document.removeEventListener('mousedown', h)
+  }, [open])
 
   function handleSearchChange(v) {
     setSearch(v)
-    setShowSuggestions(true)
-    // Jeśli wpisana nazwa pasuje do klienta — zaznacz go
+    setOpen(true)
     const exact = (buyers || []).find(b => b.name.toLowerCase() === v.toLowerCase())
     if (exact) onSelect(exact)
     else onSelect({ name: v, address: '', nip: '', delivery_address: '' })
@@ -122,7 +153,7 @@ export function BuyerCombo({ value, buyers, onSelect, placeholder }) {
 
   function handleSuggestionClick(b) {
     setSearch(b.name)
-    setShowSuggestions(false)
+    setOpen(false)
     onSelect(b)
   }
 
@@ -131,36 +162,105 @@ export function BuyerCombo({ value, buyers, onSelect, placeholder }) {
     onSelect({ name: v, address: '', nip: '', delivery_address: '' })
   }
 
-  function switchToList() {
-    setMode('list'); setSearch(''); setShowSuggestions(false); onSelect(null)
+  function switchToList() { setMode('list'); setSearch(''); setOpen(false); onSelect(null) }
+  function switchToSearch() { setMode('search'); setSearch(''); setOpen(false); onSelect(null) }
+  function switchToManual() { setMode('manual'); setManualName(''); setOpen(false); onSelect(null) }
+
+  function handleChange(e) {
+    const id = e.target.value
+    if (!id) { onSelect(null); return }
+    const b = buyers.find(b => String(b.id) === id)
+    if (b) onSelect(b)
   }
 
-  function switchToManual() {
-    setMode('manual'); setManualName(''); setSearch(''); onSelect(null)
-  }
-
-  function switchToSearch() {
-    setMode('search'); setSearch(''); setShowSuggestions(false); onSelect(null)
-  }
-
-  const btnStyle = (active) => ({
-    padding: '4px 12px', border: '0.5px solid', borderRadius: 7, cursor: 'pointer', fontSize: 12,
+  const btnStyle = active => ({
+    padding: '4px 12px', border: '0.5px solid', borderRadius: 7,
+    cursor: 'pointer', fontSize: 12,
     borderColor: active ? '#185fa5' : 'var(--color-border-tertiary)',
     background: active ? '#e6f1fb' : 'transparent',
     color: active ? '#042c53' : 'var(--color-text-secondary)',
     fontWeight: active ? 500 : 400,
   })
 
+  const dropdown = open && mode === 'search' ? createPortal(
+    <div ref={dropRef} style={{
+      position: 'fixed',
+      top: pos.top,
+      left: pos.left,
+      width: pos.width,
+      zIndex: 999999,
+      background: 'var(--color-background-primary)',
+      border: '1px solid var(--color-border-secondary)',
+      borderRadius: 8,
+      boxShadow: '0 4px 20px rgba(0,0,0,0.18)',
+      overflow: 'hidden',
+      maxHeight: 320,
+      overflowY: 'auto',
+    }}>
+      {suggestions.length === 0 && (
+        <div style={{ padding: '12px', fontSize: 12, color: 'var(--color-text-secondary)', textAlign: 'center' }}>Brak wyników</div>
+      )}
+      {suggestions.map(b => (
+        <div key={b.id}
+          onMouseDown={e => { e.preventDefault(); handleSuggestionClick(b) }}
+          style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: '0.5px solid var(--color-border-tertiary)' }}
+          onMouseEnter={e => e.currentTarget.style.background = 'var(--color-background-secondary)'}
+          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+        >
+          <div style={{ fontWeight: 500, fontSize: 13 }}>{b.name}</div>
+          <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            {b.nip && <span>🏷 {b.nip}</span>}
+            {b.address && <span>📍 {b.address}</span>}
+          </div>
+        </div>
+      ))}
+      {search && !suggestions.find(b => b.name.toLowerCase() === search.toLowerCase()) && (
+        <div
+          onMouseDown={e => { e.preventDefault(); onSelect({ name: search, address: '', nip: '', delivery_address: '' }); setOpen(false) }}
+          style={{ padding: '8px 12px', cursor: 'pointer', fontSize: 12, color: 'var(--color-text-secondary)', borderTop: '0.5px solid var(--color-border-tertiary)' }}
+          onMouseEnter={e => e.currentTarget.style.background = 'var(--color-background-secondary)'}
+          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+        >
+          ➕ Użyj: <strong>"{search}"</strong>
+        </div>
+      )}
+    </div>,
+    document.body
+  ) : null
+
   return (
     <div>
-      {/* Przełącznik trybu */}
       <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
-        <button onClick={switchToList} style={btnStyle(mode === 'list')}>📋 Lista</button>
         <button onClick={switchToSearch} style={btnStyle(mode === 'search')}>🔍 Szukaj / wpisz</button>
+        <button onClick={switchToList} style={btnStyle(mode === 'list')}>📋 Lista</button>
         <button onClick={switchToManual} style={btnStyle(mode === 'manual')}>✏️ Ręcznie</button>
       </div>
 
-      {/* TRYB: lista rozwijana */}
+      {/* TRYB: szukaj */}
+      {mode === 'search' && (
+        <div>
+          <input
+            ref={inputRef}
+            value={search}
+            onChange={e => handleSearchChange(e.target.value)}
+            onFocus={() => { updatePos(); setOpen(true) }}
+            placeholder="Zacznij wpisywać nazwę, NIP lub adres..."
+            style={{ ...iStyle }}
+          />
+          {dropdown}
+          {value && !open && (
+            <div style={{ marginTop: 6, padding: '8px 12px', background: 'var(--color-background-secondary)', borderRadius: 8, fontSize: 12 }}>
+              <div style={{ fontWeight: 500, marginBottom: 2 }}>{value}</div>
+              {selected?.address && <div style={{ color: 'var(--color-text-secondary)' }}>📍 {selected.address}</div>}
+              {selected?.nip && <div style={{ color: 'var(--color-text-secondary)' }}>🏷 NIP: {selected.nip}</div>}
+              {selected?.delivery_address && <div style={{ color: 'var(--color-text-secondary)' }}>🚚 {selected.delivery_address}</div>}
+              <button onClick={() => { onSelect(null); setSearch('') }} style={{ marginTop: 4, fontSize: 11, border: 'none', background: 'transparent', cursor: 'pointer', color: '#a32d2d', padding: 0 }}>✕ Wyczyść</button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* TRYB: lista */}
       {mode === 'list' && (
         <div>
           <select value={selected ? String(selected.id) : ''} onChange={handleChange} style={{ ...iStyle }}>
@@ -178,72 +278,6 @@ export function BuyerCombo({ value, buyers, onSelect, placeholder }) {
               {selected.nip && <div style={{ color: 'var(--color-text-secondary)' }}>🏷 NIP: {selected.nip}</div>}
               {selected.delivery_address && <div style={{ color: 'var(--color-text-secondary)' }}>🚚 {selected.delivery_address}</div>}
               <button onClick={() => onSelect(null)} style={{ marginTop: 4, fontSize: 11, border: 'none', background: 'transparent', cursor: 'pointer', color: '#a32d2d', padding: 0 }}>✕ Wyczyść</button>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* TRYB: szukaj z sugestiami */}
-      {mode === 'search' && (
-        <div style={{ position: 'relative' }}>
-          <input
-            ref={searchRef}
-            autoFocus
-            value={search}
-            onChange={e => handleSearchChange(e.target.value)}
-            onFocus={() => setShowSuggestions(true)}
-            onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
-            placeholder="Zacznij wpisywać nazwę, NIP lub adres..."
-            style={{ ...iStyle }}
-          />
-
-          {/* Sugestie */}
-          {showSuggestions && suggestions.length > 0 && (
-            <div style={{
-              position: 'absolute', top: '100%', left: 0, right: 0,
-              background: 'var(--color-background-primary)',
-              border: '1px solid var(--color-border-secondary)',
-              borderRadius: 8, marginTop: 2, zIndex: 500,
-              boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
-              overflow: 'hidden',
-            }}>
-              {suggestions.map(b => (
-                <div
-                  key={b.id}
-                  onMouseDown={() => handleSuggestionClick(b)}
-                  style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: '0.5px solid var(--color-border-tertiary)' }}
-                  onMouseEnter={e => e.currentTarget.style.background = 'var(--color-background-secondary)'}
-                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                >
-                  <div style={{ fontWeight: 500, fontSize: 13 }}>{b.name}</div>
-                  <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                    {b.nip && <span>🏷 {b.nip}</span>}
-                    {b.address && <span>📍 {b.address}</span>}
-                  </div>
-                </div>
-              ))}
-              {/* Opcja użycia wpisanej nazwy bez wyboru z bazy */}
-              {search && !suggestions.find(b => b.name.toLowerCase() === search.toLowerCase()) && (
-                <div
-                  onMouseDown={() => { onSelect({ name: search, address: '', nip: '', delivery_address: '' }); setShowSuggestions(false) }}
-                  style={{ padding: '8px 12px', cursor: 'pointer', borderTop: '0.5px solid var(--color-border-tertiary)', fontSize: 12, color: 'var(--color-text-secondary)' }}
-                  onMouseEnter={e => e.currentTarget.style.background = 'var(--color-background-secondary)'}
-                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                >
-                  ➕ Użyj: <strong>"{search}"</strong> (bez wyboru z bazy)
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Wybrany klient */}
-          {value && (
-            <div style={{ marginTop: 6, padding: '8px 12px', background: 'var(--color-background-secondary)', borderRadius: 8, fontSize: 12 }}>
-              <div style={{ fontWeight: 500, marginBottom: 2 }}>{value}</div>
-              {selected?.address && <div style={{ color: 'var(--color-text-secondary)' }}>📍 {selected.address}</div>}
-              {selected?.nip && <div style={{ color: 'var(--color-text-secondary)' }}>🏷 NIP: {selected.nip}</div>}
-              {selected?.delivery_address && <div style={{ color: 'var(--color-text-secondary)' }}>🚚 {selected.delivery_address}</div>}
-              <button onClick={() => { onSelect(null); setSearch('') }} style={{ marginTop: 4, fontSize: 11, border: 'none', background: 'transparent', cursor: 'pointer', color: '#a32d2d', padding: 0 }}>✕ Wyczyść</button>
             </div>
           )}
         </div>
