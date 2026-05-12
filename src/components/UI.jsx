@@ -88,6 +88,9 @@ function useDropdownRect(ref, open) {
 }
 
 export function BuyerCombo({ value, buyers, onSelect, placeholder }) {
+  const [mode, setMode] = useState('list') // 'list' | 'manual'
+  const [manualName, setManualName] = useState('')
+
   const selected = (buyers || []).find(b => b.name === value)
 
   function handleChange(e) {
@@ -97,30 +100,96 @@ export function BuyerCombo({ value, buyers, onSelect, placeholder }) {
     if (b) onSelect(b)
   }
 
+  function handleManual(v) {
+    setManualName(v)
+    onSelect({ name: v, address: '', nip: '', delivery_address: '' })
+  }
+
+  function switchToManual() {
+    setMode('manual')
+    setManualName('')
+    onSelect(null)
+  }
+
+  function switchToList() {
+    setMode('list')
+    setManualName('')
+    onSelect(null)
+  }
+
   return (
     <div>
-      <select
-        value={selected ? String(selected.id) : ''}
-        onChange={handleChange}
-        style={{ ...iStyle }}
-      >
-        <option value="">— {placeholder || 'Wybierz klienta'} —</option>
-        {(buyers || []).map(b => (
-          <option key={b.id} value={String(b.id)}>
-            {b.name}{b.nip ? ` · NIP: ${b.nip}` : ''}{b.address ? ` · ${b.address}` : ''}
-          </option>
-        ))}
-      </select>
+      {/* Przełącznik trybu */}
+      <div style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
+        <button
+          onClick={() => switchToList()}
+          style={{
+            padding: '4px 12px', border: '0.5px solid', borderRadius: 7, cursor: 'pointer', fontSize: 12,
+            borderColor: mode === 'list' ? '#185fa5' : 'var(--color-border-tertiary)',
+            background: mode === 'list' ? '#e6f1fb' : 'transparent',
+            color: mode === 'list' ? '#042c53' : 'var(--color-text-secondary)',
+            fontWeight: mode === 'list' ? 500 : 400,
+          }}>
+          📋 Wybierz z bazy
+        </button>
+        <button
+          onClick={() => switchToManual()}
+          style={{
+            padding: '4px 12px', border: '0.5px solid', borderRadius: 7, cursor: 'pointer', fontSize: 12,
+            borderColor: mode === 'manual' ? '#185fa5' : 'var(--color-border-tertiary)',
+            background: mode === 'manual' ? '#e6f1fb' : 'transparent',
+            color: mode === 'manual' ? '#042c53' : 'var(--color-text-secondary)',
+            fontWeight: mode === 'manual' ? 500 : 400,
+          }}>
+          ✏️ Wpisz ręcznie
+        </button>
+      </div>
 
-      {selected && (
-        <div style={{ marginTop: 6, padding: '8px 12px', background: 'var(--color-background-secondary)', borderRadius: 8, fontSize: 12 }}>
-          <div style={{ fontWeight: 500, marginBottom: 2 }}>{selected.name}</div>
-          {selected.address && <div style={{ color: 'var(--color-text-secondary)' }}>📍 {selected.address}</div>}
-          {selected.nip && <div style={{ color: 'var(--color-text-secondary)' }}>🏷 NIP: {selected.nip}</div>}
-          {selected.delivery_address && <div style={{ color: 'var(--color-text-secondary)' }}>🚚 {selected.delivery_address}</div>}
-          <button onClick={() => onSelect(null)} style={{ marginTop: 4, fontSize: 11, border: 'none', background: 'transparent', cursor: 'pointer', color: '#a32d2d', padding: 0 }}>
-            ✕ Wyczyść wybór
-          </button>
+      {/* Tryb: lista */}
+      {mode === 'list' && (
+        <div>
+          <select
+            value={selected ? String(selected.id) : ''}
+            onChange={handleChange}
+            style={{ ...iStyle }}
+          >
+            <option value="">— {placeholder || 'Wybierz klienta'} —</option>
+            {(buyers || []).map(b => (
+              <option key={b.id} value={String(b.id)}>
+                {b.name}{b.nip ? ` · NIP: ${b.nip}` : ''}{b.address ? ` · ${b.address}` : ''}
+              </option>
+            ))}
+          </select>
+
+          {selected && (
+            <div style={{ marginTop: 6, padding: '8px 12px', background: 'var(--color-background-secondary)', borderRadius: 8, fontSize: 12 }}>
+              <div style={{ fontWeight: 500, marginBottom: 2 }}>{selected.name}</div>
+              {selected.address && <div style={{ color: 'var(--color-text-secondary)' }}>📍 {selected.address}</div>}
+              {selected.nip && <div style={{ color: 'var(--color-text-secondary)' }}>🏷 NIP: {selected.nip}</div>}
+              {selected.delivery_address && <div style={{ color: 'var(--color-text-secondary)' }}>🚚 {selected.delivery_address}</div>}
+              <button onClick={() => onSelect(null)} style={{ marginTop: 4, fontSize: 11, border: 'none', background: 'transparent', cursor: 'pointer', color: '#a32d2d', padding: 0 }}>
+                ✕ Wyczyść wybór
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Tryb: ręczny */}
+      {mode === 'manual' && (
+        <div>
+          <input
+            autoFocus
+            value={manualName}
+            onChange={e => handleManual(e.target.value)}
+            placeholder="Wpisz nazwę nabywcy..."
+            style={{ ...iStyle }}
+          />
+          {manualName && (
+            <div style={{ marginTop: 4, fontSize: 11, color: 'var(--color-text-secondary)' }}>
+              Adres wpisz ręcznie w polu poniżej
+            </div>
+          )}
         </div>
       )}
     </div>
