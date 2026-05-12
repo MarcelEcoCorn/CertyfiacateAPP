@@ -88,15 +88,6 @@ function useDropdownRect(ref, open) {
 }
 
 export function BuyerCombo({ value, buyers, onSelect, placeholder }) {
-  const [search, setSearch] = useState('')
-
-  const filtered = (buyers || []).filter(b =>
-    !search ||
-    b.name?.toLowerCase().includes(search.toLowerCase()) ||
-    b.address?.toLowerCase().includes(search.toLowerCase()) ||
-    b.nip?.toLowerCase().includes(search.toLowerCase())
-  )
-
   const selected = (buyers || []).find(b => b.name === value)
 
   function handleChange(e) {
@@ -108,48 +99,26 @@ export function BuyerCombo({ value, buyers, onSelect, placeholder }) {
 
   return (
     <div>
-      {/* Pole wyszukiwania */}
-      <input
-        value={search}
-        onChange={e => setSearch(e.target.value)}
-        placeholder="🔍 Szukaj klienta po nazwie, NIP, adresie..."
-        style={{ ...iStyle, marginBottom: 6 }}
-      />
-
-      {/* Natywny select — zawsze na wierzchu, zawsze czytelny */}
       <select
         value={selected ? String(selected.id) : ''}
         onChange={handleChange}
-        size={Math.min(filtered.length + 1, 6)}
-        style={{
-          ...iStyle,
-          height: 'auto',
-          padding: 0,
-          overflow: 'auto',
-        }}
+        style={{ ...iStyle }}
       >
         <option value="">— {placeholder || 'Wybierz klienta'} —</option>
-        {filtered.map(b => (
+        {(buyers || []).map(b => (
           <option key={b.id} value={String(b.id)}>
-            {b.name}{b.nip ? `  ·  NIP: ${b.nip}` : ''}{b.address ? `  ·  ${b.address}` : ''}
+            {b.name}{b.nip ? ` · NIP: ${b.nip}` : ''}{b.address ? ` · ${b.address}` : ''}
           </option>
         ))}
       </select>
 
-      {/* Wybrany klient — szczegóły */}
       {selected && (
-        <div style={{
-          marginTop: 6, padding: '8px 12px',
-          background: 'var(--color-background-secondary)',
-          borderRadius: 8, fontSize: 12,
-        }}>
+        <div style={{ marginTop: 6, padding: '8px 12px', background: 'var(--color-background-secondary)', borderRadius: 8, fontSize: 12 }}>
           <div style={{ fontWeight: 500, marginBottom: 2 }}>{selected.name}</div>
           {selected.address && <div style={{ color: 'var(--color-text-secondary)' }}>📍 {selected.address}</div>}
           {selected.nip && <div style={{ color: 'var(--color-text-secondary)' }}>🏷 NIP: {selected.nip}</div>}
           {selected.delivery_address && <div style={{ color: 'var(--color-text-secondary)' }}>🚚 {selected.delivery_address}</div>}
-          <button
-            onClick={() => onSelect(null)}
-            style={{ marginTop: 4, fontSize: 11, border: 'none', background: 'transparent', cursor: 'pointer', color: '#a32d2d', padding: 0 }}>
+          <button onClick={() => onSelect(null)} style={{ marginTop: 4, fontSize: 11, border: 'none', background: 'transparent', cursor: 'pointer', color: '#a32d2d', padding: 0 }}>
             ✕ Wyczyść wybór
           </button>
         </div>
