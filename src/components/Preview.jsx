@@ -1,13 +1,6 @@
 import { useRef } from 'react'
 import { COMPANY, EN, PL, fmtD } from '../lib/constants.js'
-
-const LogoSVG = () => (
-  <svg width="130" height="40" viewBox="0 0 130 40" xmlns="http://www.w3.org/2000/svg">
-    <text x="0" y="22" fontFamily="Arial Black, Arial" fontWeight="900" fontSize="20" fill="#1a6e3c" letterSpacing="1">ECO-</text>
-    <text x="58" y="22" fontFamily="Arial Black, Arial" fontWeight="900" fontSize="20" fill="#5aab4a" letterSpacing="1">CORE</text>
-    <text x="0" y="34" fontFamily="Arial" fontSize="7" fill="#888" letterSpacing="2">THE FUTURE OF POTATO</text>
-  </svg>
-)
+import { LOGO_B64 } from '../lib/logo.js'
 
 export default function Preview({ doc, onSave, onBack, saving }) {
   const printRef = useRef()
@@ -18,17 +11,21 @@ export default function Preview({ doc, onSave, onBack, saving }) {
   const totalKg = doc.totalKg || lots.reduce((s, l) => s + (Number(l.qty) || 0), 0)
   const productName = doc.productName || ''
 
+  // 17 wierszy × 2 kolumny — dokładnie jak w oryginale
   const rows = Array.from({ length: 17 }, (_, i) => ({
     nL: i + 1, lotL: lots[i]?.lot || '', qtyL: lots[i] ? `${lots[i].qty}kg` : '',
     nR: i + 18, lotR: lots[i + 17]?.lot || '', qtyR: lots[i + 17] ? `${lots[i + 17].qty}kg` : '',
   }))
+
+  // Numer certyfikatu — albo już nadany (po zapisie) albo placeholder
+  const certNum = doc.certNumber || '___/2026/ECO'
 
   function printDoc() {
     const el = printRef.current
     if (!el) return
     const w = window.open('', '_blank')
     w.document.write(`
-      <html><head><title>ECO-CORE — ${doc.certNumber}</title>
+      <html><head><title>ECO-CORE — ${certNum}</title>
       <style>
         * { box-sizing: border-box }
         body { font-family: Arial, sans-serif; font-size: 11px; margin: 20px; color: #000; background: #fff }
@@ -54,7 +51,12 @@ export default function Preview({ doc, onSave, onBack, saving }) {
   const DocHeader = () => (
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
       <div>
-        <div style={{ marginBottom: 6 }}><LogoSVG /></div>
+        {/* Logo z pliku */}
+        <img
+          src={LOGO_B64}
+          alt="ECO-CORE"
+          style={{ height: 48, marginBottom: 8, display: 'block' }}
+        />
         <div style={{ fontSize: 10 }}>
           {COMPANY.name}<br />
           {COMPANY.address}<br />
@@ -113,7 +115,7 @@ export default function Preview({ doc, onSave, onBack, saving }) {
           ← Wróć
         </button>
         <span style={{ fontSize: 14, fontWeight: 500 }}>
-          Nr {doc.certNumber || '—'} · {doc.buyer}
+          Nr {certNum} · {doc.buyer}
         </span>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
           <button onClick={printDoc} style={{ padding: '6px 14px', border: '0.5px solid var(--color-border-secondary)', borderRadius: 7, background: 'transparent', cursor: 'pointer', fontSize: 13 }}>
@@ -131,13 +133,13 @@ export default function Preview({ doc, onSave, onBack, saving }) {
         </div>
       </div>
 
-      {/* Document */}
+      {/* Dokument */}
       <div style={{ padding: 20, overflow: 'auto' }}>
         <div ref={printRef}>
           <div style={ds}>
             <DocHeader />
             <div style={{ textAlign: 'center', fontWeight: 'bold', fontSize: 13, borderBottom: '1px solid #000', paddingBottom: 6, marginBottom: 12 }}>
-              {L.qcTitle} No. {doc.certNumber || '___/2026/ECO'}
+              {L.qcTitle} No. {certNum}
             </div>
             {fields([
               [L.buyer, `${doc.buyer}${doc.buyerAddress ? ' ' + doc.buyerAddress : ''}`],
