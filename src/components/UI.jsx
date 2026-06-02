@@ -254,7 +254,7 @@ export function LotGrid({ lots }) {
   )
 }
 
-export function CertRow({ cert, onView, onSent, onDelete }) {
+export function CertRow({ cert, onView, onEdit, onSent, onDelete }) {
   const STATUS_COLOR = { saved: '#378add', sent: '#1d9e75', archived: '#888780' }
   const STATUS_LABEL = { saved: 'Zapisany', sent: 'Wysłany', archived: 'Archiwum' }
   const fmtD = d => {
@@ -291,6 +291,9 @@ export function CertRow({ cert, onView, onSent, onDelete }) {
         )}
         <button onClick={onView} style={{ padding: '5px 11px', border: '0.5px solid var(--color-border-secondary)', borderRadius: 7, background: 'transparent', cursor: 'pointer', fontSize: 12 }}>
           Podgląd
+        </button>
+        <button onClick={onEdit} style={{ padding: '5px 11px', border: '0.5px solid #185fa5', borderRadius: 7, background: 'transparent', cursor: 'pointer', fontSize: 12, color: '#185fa5' }}>
+          Edytuj
         </button>
         <button onClick={onDelete} style={{ padding: '5px 9px', border: 'none', borderRadius: 7, background: 'transparent', cursor: 'pointer', fontSize: 13, color: '#a32d2d' }}>
           ×
