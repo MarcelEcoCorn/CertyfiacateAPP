@@ -390,7 +390,7 @@ export default function App() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
             <div>
               <div style={{ fontSize: 18, fontWeight: 500, letterSpacing: 1 }}>🌿 ECO-CORE</div>
-              <div style={{ fontSize: 11, color: 'var(--color-text-secondary)' }}>System certyfikatów jakości · Eco-corn Sp. z o.o.</div>
+              <div style={{ fontSize: 11, color: 'var(--color-text-secondary)' }}>System certyfikatów jakości · Eco-Core Sp. z o.o.</div>
             </div>
             <div style={{ textAlign: 'right' }}>
               <div style={{ fontSize: 11, color: 'var(--color-text-secondary)' }}>Następny nr certyfikatu</div>
