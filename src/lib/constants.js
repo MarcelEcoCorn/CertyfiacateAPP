@@ -23,7 +23,7 @@ export const addDays = (d, days) => {
   return dt.toISOString().slice(0, 10)
 }
 
-export const addYear = d => addDays(d, 365)
+export const addYear = d => addDays(d, 364)
 
 export const yearShort = () => new Date().getFullYear().toString().slice(2)
 
