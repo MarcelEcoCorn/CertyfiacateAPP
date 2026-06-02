@@ -65,6 +65,7 @@ export default function App() {
     dateLoading: today(), dateProduction: '',
     bestBeforeOverride: '',
     truckNumber: '', origin: 'Poland',
+    notes: '',
   })
 
   useEffect(() => {
@@ -124,6 +125,7 @@ export default function App() {
       origin: f.origin,
       lots: activeLots, totalKg, pallets: numPallets, kgPerLot,
       lang, docType, status: 'saved',
+      notes: f.notes,
     })
   }
 
@@ -137,7 +139,7 @@ export default function App() {
       const newCounter = await fetchCurrentCounter()
       setNextCounter(newCounter)
       setPreview(null); setTab(1)
-      setF(p => ({ ...p, lotNumber: '', truckNumber: '', dateProduction: '', bestBeforeOverride: '', pallets: 9, manualLots: false, customLots: [] }))
+      setF(p => ({ ...p, lotNumber: '', truckNumber: '', dateProduction: '', bestBeforeOverride: '', pallets: 9, manualLots: false, customLots: [], notes: '' }))
       setBuyers(await fetchBuyers())
     } catch (e) { setError('Błąd zapisu: ' + e.message) }
     finally { setSaving(false) }
@@ -437,6 +439,24 @@ export default function App() {
                       options={availablePackagings.map(p => ({ value: p.value, label: packLabel(p) }))} />
                   </div>
                 </div>
+              </Sec>
+
+              <Sec label="Uwagi (opcjonalne)">
+                <Lbl>Dodatkowe informacje np. numer zamówienia klienta</Lbl>
+                <textarea
+                  value={f.notes}
+                  onChange={e => sf('notes', e.target.value)}
+                  placeholder="np. Order No. 12345 / PO-2026-001"
+                  rows={2}
+                  style={{
+                    width: '100%', padding: '7px 10px', fontSize: 13,
+                    borderRadius: 8, border: '0.5px solid var(--color-border-tertiary)',
+                    background: 'var(--color-background-primary)',
+                    color: 'var(--color-text-primary)',
+                    boxSizing: 'border-box', resize: 'vertical',
+                    fontFamily: 'inherit',
+                  }}
+                />
               </Sec>
 
               <Sec label="Palety i numer partii LOT — ten sam numer dla każdej palety">
