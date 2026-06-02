@@ -1,5 +1,5 @@
 export const COMPANY = {
-  name: 'Eco-corn Sp. z o. o.',
+  name: 'Eco-core Sp. z o. o.',
   address: 'Ul. Mysia Góra 18A, 44-144 Nieborowice',
   plant: 'Ul. Komunalna 12, 62-731 Przykona',
   tel: '+48 608 586 524',
@@ -29,7 +29,6 @@ export const yearShort = () => new Date().getFullYear().toString().slice(2)
 
 export function generateLots(prefix, lotNumber, count, kgPerLot) {
   if (!prefix || !lotNumber || count < 1) return []
-  // Każda paleta ma TEN SAM numer partii
   return Array.from({ length: count }, () => ({
     lot: `${prefix}${lotNumber}`,
     qty: kgPerLot,
@@ -37,14 +36,12 @@ export function generateLots(prefix, lotNumber, count, kgPerLot) {
 }
 
 export const EN = {
-  qcTitle: 'QUALITY CERTIFICATE', plTitle: 'Packing List',
+  qcTitle: 'QUALITY CERTIFICATE',
   buyer: 'Buyer', product: 'Product', dateLoading: 'Date of loading',
   dateProd: 'Date of production', bestBefore: 'Best before', qty: 'Quantity',
   packaging: 'Packaging', quality: 'Quality', storage: 'Storage conditions',
   origin: 'Country of origin', lotNumber: 'Lot number, amount',
-  recipient: 'Recipient', truck: 'Truck number', articleCode: 'Article Code',
-  pallets: 'Number of pallets', netWeight: 'Net weight of goods',
-  grossWeight: 'Gross weight', bagWeight: 'Weight of one Papper Bag',
+  articleCode: 'Article Code',
   declaration: 'The product complies with Product Specification and legal requirements.',
   appearance: 'Appearance and color: Color from cream to yellow',
   smell: 'Smell and taste: typical for dried potato.',
@@ -54,14 +51,12 @@ export const EN = {
 }
 
 export const PL = {
-  qcTitle: 'CERTYFIKAT JAKOŚCI', plTitle: 'Lista Pakowania',
+  qcTitle: 'CERTYFIKAT JAKOŚCI',
   buyer: 'Nabywca', product: 'Produkt', dateLoading: 'Data załadunku',
   dateProd: 'Data produkcji', bestBefore: 'Termin ważności', qty: 'Ilość',
   packaging: 'Opakowanie', quality: 'Jakość', storage: 'Warunki przechowywania',
   origin: 'Kraj pochodzenia', lotNumber: 'Numer partii, ilość',
-  recipient: 'Odbiorca', truck: 'Numer ciężarówki', articleCode: 'Kod artykułu',
-  pallets: 'Liczba palet', netWeight: 'Waga netto towarów',
-  grossWeight: 'Waga brutto', bagWeight: 'Waga jednego worka',
+  articleCode: 'Kod artykułu',
   declaration: 'Produkt jest zgodny ze Specyfikacją Produktu i wymogami prawnymi.',
   appearance: 'Wygląd i kolor: od kremowego do żółtego',
   smell: 'Zapach i smak: typowy dla suszonego ziemniaka.',
