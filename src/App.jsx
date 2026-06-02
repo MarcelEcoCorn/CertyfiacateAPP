@@ -112,7 +112,6 @@ export default function App() {
     if (!f.buyerName.trim()) e.push('Wybierz lub wpisz nabywcę')
     if (!f.manualLots && !f.lotNumber.trim()) e.push('Podaj numer partii LOT (np. 171)')
     if (f.manualLots && f.customLots.some(l => !l.lot.trim())) e.push('Uzupełnij wszystkie numery partii')
-    if (!f.truckNumber.trim()) e.push('Podaj numer ciężarówki')
     return e
   }, [f])
 
@@ -122,8 +121,8 @@ export default function App() {
       productCode: f.productCode, productName: product?.name || '',
       dateLoading: f.dateLoading, dateProduction: dateProd, bestBefore,
       packaging: packInfo?.label || f.packaging,
-      origin: f.origin, truckNumber: f.truckNumber,
-      lots: activeLots, totalKg, grossKg, pallets: numPallets, kgPerLot,
+      origin: f.origin,
+      lots: activeLots, totalKg, pallets: numPallets, kgPerLot,
       lang, docType, status: 'saved',
     })
   }
@@ -505,7 +504,7 @@ export default function App() {
               </Sec>
 
               <Sec label="Daty i transport">
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 10 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
                   <div>
                     <Lbl>Data załadunku</Lbl>
                     <Inp type="date" value={f.dateLoading} onChange={v => sf('dateLoading', v)} />
@@ -513,10 +512,6 @@ export default function App() {
                   <div>
                     <Lbl>Data produkcji <span style={{ fontSize: 10, color: 'var(--color-text-secondary)' }}>(domyślnie dzień przed)</span></Lbl>
                     <Inp type="date" value={f.dateProduction || dateProd} onChange={v => sf('dateProduction', v)} />
-                  </div>
-                  <div>
-                    <Lbl>Numer ciężarówki</Lbl>
-                    <Inp value={f.truckNumber} onChange={v => sf('truckNumber', v)} placeholder="MGK015/LN057" />
                   </div>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
@@ -541,13 +536,11 @@ export default function App() {
                 </div>
               </Sec>
 
-              {/* Summary */}
               <div style={{ background: 'var(--color-background-secondary)', borderRadius: 10, padding: '12px 16px', display: 'flex', gap: 24, flexWrap: 'wrap' }}>
                 {[
                   ['Produkt', product ? `${product.code} · ${product.name}` : '—'],
                   ['Palety', numPallets],
                   ['Kg netto', `${totalKg.toLocaleString()} kg`],
-                  ['Kg brutto', `${grossKg.toLocaleString()} kg`],
                   ['Termin ważności', fmtD(bestBefore)],
                   ['Nr certyfikatu', `${nextCounter}/${new Date().getFullYear()}/ECO (po zapisie)`],
                 ].map(([k, v]) => (
