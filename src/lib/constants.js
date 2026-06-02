@@ -1,5 +1,5 @@
 export const COMPANY = {
-  name: 'Eco-core Sp. z o. o.',
+  name: 'Eco-Core Sp. z o. o.',
   address: 'Ul. Mysia Góra 18A, 44-144 Nieborowice',
   plant: 'Ul. Komunalna 12, 62-731 Przykona',
   tel: '+48 608 586 524',
