@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 
 const iStyle = {
@@ -59,17 +59,41 @@ export function BuyerCombo({ value, buyers, onSelect, placeholder }) {
   const [mode, setMode] = useState('search')
   const [search, setSearch] = useState('')
   const [manualName, setManualName] = useState('')
+  const [open, setOpen] = useState(false)
+  const wrapRef = useRef()
+
+  useEffect(() => {
+    if (!open) return
+    const h = e => { if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', h)
+    return () => document.removeEventListener('mousedown', h)
+  }, [open])
 
   const selected = (buyers || []).find(b => b.name === value)
-  const listId = 'buyers-datalist'
 
-  function handleDatalistChange(e) {
-    const typed = e.target.value
-    setSearch(typed)
-    const match = (buyers || []).find(b => b.name === typed)
-    if (match) onSelect(match)
-    else if (typed) onSelect({ name: typed, address: '', nip: '', delivery_address: '' })
+  const suggestions = useMemo(() => {
+    if (!search) return (buyers || []).slice(0, 10)
+    const q = search.toLowerCase()
+    return (buyers || []).filter(b =>
+      b.name?.toLowerCase().includes(q) ||
+      b.nip?.toLowerCase().includes(q) ||
+      b.address?.toLowerCase().includes(q)
+    ).slice(0, 10)
+  }, [search, buyers])
+
+  function handleInput(v) {
+    setSearch(v)
+    setOpen(true)
+    const exact = (buyers || []).find(b => b.name.toLowerCase() === v.toLowerCase())
+    if (exact) onSelect(exact)
+    else if (v) onSelect({ name: v, address: '', nip: '', delivery_address: '' })
     else onSelect(null)
+  }
+
+  function handlePick(b) {
+    setSearch(b.name)
+    setOpen(false)
+    onSelect(b)
   }
 
   function handleManual(v) {
@@ -78,7 +102,7 @@ export function BuyerCombo({ value, buyers, onSelect, placeholder }) {
   }
 
   function switchMode(m) {
-    setMode(m); setSearch(''); setManualName(''); onSelect(null)
+    setMode(m); setSearch(''); setManualName(''); setOpen(false); onSelect(null)
   }
 
   const btnStyle = active => ({
@@ -112,28 +136,71 @@ export function BuyerCombo({ value, buyers, onSelect, placeholder }) {
       </div>
 
       {mode === 'search' && (
-        <div>
-          <datalist id={listId}>
-            {(buyers || []).map(b => (
-              <option key={b.id} value={b.name}>
-                {b.nip ? `NIP: ${b.nip}` : ''} {b.address || ''}
-              </option>
-            ))}
-          </datalist>
+        <div ref={wrapRef} style={{ position: 'relative' }}>
           <input
-            list={listId}
             value={search}
-            onChange={handleDatalistChange}
+            onChange={e => handleInput(e.target.value)}
+            onFocus={() => setOpen(true)}
             placeholder="Zacznij wpisywać nazwę klienta..."
             style={{ ...iStyle }}
+            autoComplete="off"
           />
-          {selected && <ClientCard client={selected} />}
-          {value && !selected && value.trim() && (
-            <div style={{ marginTop: 6, padding: '6px 12px', background: 'var(--color-background-secondary)', borderRadius: 8, fontSize: 12 }}>
-              <span style={{ fontWeight: 500 }}>{value}</span>
-              <span style={{ color: 'var(--color-text-secondary)', marginLeft: 8, fontSize: 11 }}>(spoza bazy)</span>
-              <button onClick={() => { onSelect(null); setSearch('') }} style={{ marginLeft: 8, fontSize: 11, border: 'none', background: 'transparent', cursor: 'pointer', color: '#a32d2d', padding: 0 }}>✕</button>
+
+          {open && suggestions.length > 0 && (
+            <div style={{
+              position: 'absolute',
+              top: '100%', left: 0, right: 0,
+              marginTop: 2,
+              background: '#fff',
+              border: '1px solid #ccc',
+              borderRadius: 8,
+              boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
+              zIndex: 9999,
+              maxHeight: 280,
+              overflowY: 'auto',
+            }}>
+              {suggestions.map(b => (
+                <div
+                  key={b.id}
+                  onMouseDown={e => { e.preventDefault(); handlePick(b) }}
+                  style={{
+                    padding: '9px 13px', cursor: 'pointer',
+                    borderBottom: '0.5px solid #eee',
+                    background: b.name === value ? '#f0f7ff' : '#fff',
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = '#f0f7ff'}
+                  onMouseLeave={e => e.currentTarget.style.background = b.name === value ? '#f0f7ff' : '#fff'}
+                >
+                  <div style={{ fontWeight: 500, fontSize: 13, color: '#111' }}>{b.name}</div>
+                  <div style={{ fontSize: 11, color: '#777', display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 1 }}>
+                    {b.nip && <span>🏷 {b.nip}</span>}
+                    {b.address && <span>📍 {b.address}</span>}
+                  </div>
+                </div>
+              ))}
+              {search && !suggestions.find(b => b.name.toLowerCase() === search.toLowerCase()) && (
+                <div
+                  onMouseDown={e => { e.preventDefault(); onSelect({ name: search, address: '', nip: '', delivery_address: '' }); setOpen(false) }}
+                  style={{ padding: '9px 13px', cursor: 'pointer', fontSize: 12, color: '#555', borderTop: '1px solid #eee', background: '#fafafa' }}
+                  onMouseEnter={e => e.currentTarget.style.background = '#f0f7ff'}
+                  onMouseLeave={e => e.currentTarget.style.background = '#fafafa'}
+                >
+                  ➕ Użyj: <strong>"{search}"</strong> (spoza bazy)
+                </div>
+              )}
             </div>
+          )}
+
+          {value && !open && (
+            selected
+              ? <ClientCard client={selected} />
+              : value.trim() && (
+                <div style={{ marginTop: 6, padding: '6px 12px', background: 'var(--color-background-secondary)', borderRadius: 8, fontSize: 12 }}>
+                  <span style={{ fontWeight: 500 }}>{value}</span>
+                  <span style={{ color: 'var(--color-text-secondary)', marginLeft: 8, fontSize: 11 }}>(spoza bazy)</span>
+                  <button onClick={() => { onSelect(null); setSearch('') }} style={{ marginLeft: 8, fontSize: 11, border: 'none', background: 'transparent', cursor: 'pointer', color: '#a32d2d', padding: 0 }}>✕</button>
+                </div>
+              )
           )}
         </div>
       )}
@@ -214,7 +281,6 @@ export function CertRow({ cert, onView, onSent, onDelete }) {
         </div>
         <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {cert.buyer} · {cert.productCode} · {(cert.totalKg || 0).toLocaleString()} kg · {cert.pallets} palet · {fmtD(cert.dateLoading)}
-          {cert.truckNumber ? ` · ${cert.truckNumber}` : ''}
         </div>
       </div>
       <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
@@ -394,7 +460,6 @@ export function ImportModal({ type, onImport, onClose }) {
         position: 'relative', zIndex: 99999,
         color: '#111',
       }}>
-
         {/* Header */}
         <div style={{
           padding: '20px 24px 16px',
@@ -418,7 +483,6 @@ export function ImportModal({ type, onImport, onClose }) {
         </div>
 
         <div style={{ padding: '20px 24px' }}>
-
           {/* Krok 1 */}
           <div style={{ marginBottom: 20 }}>
             <Step num="1" title="Przygotuj plik w Excelu" />
@@ -551,7 +615,6 @@ export function ImportModal({ type, onImport, onClose }) {
               {rows.length > 0 ? `✓ Importuj ${rows.length} wierszy` : 'Importuj'}
             </button>
           </div>
-
         </div>
       </div>
     </div>,
