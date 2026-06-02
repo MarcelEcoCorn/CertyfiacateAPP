@@ -78,17 +78,21 @@ export default function App() {
   }, [products])
 
   useEffect(() => {
-    if (packagings.length && !f.packaging) {
-      setF(prev => ({ ...prev, packaging: packagings[0].value }))
+    if (!availablePackagings.length) return
+    // Sprawdź czy aktualne opakowanie jest dostępne dla wybranego klienta
+    const currentValid = availablePackagings.find(p => p.value === f.packaging)
+    if (!currentValid) {
+      // Jeśli nie — wybierz pierwsze dostępne (najpierw specyficzne dla klienta)
+      const clientSpecific = availablePackagings.find(p => p.buyerId)
+      const fallback = clientSpecific || availablePackagings[0]
+      setF(prev => ({ ...prev, packaging: fallback.value }))
     }
-  }, [packagings])
+  }, [availablePackagings])
 
   const availablePackagings = useMemo(() => {
-    if (!packagings?.length) return []
-    const bid = f?.buyerId ?? null
-    if (!bid) return packagings.filter(p => !p.buyerId)
-    return packagings.filter(p => !p.buyerId || p.buyerId === bid)
-  }, [packagings, f?.buyerId])
+    if (!f.buyerId) return packagings.filter(p => !p.buyerId)
+    return packagings.filter(p => !p.buyerId || p.buyerId === f.buyerId)
+  }, [packagings, f.buyerId])
 
   const packInfo = availablePackagings.find(p => p.value === f.packaging) || availablePackagings[0]
   const product = products.find(p => p.code === f.productCode) || products[0]
