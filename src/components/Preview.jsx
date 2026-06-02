@@ -1,6 +1,6 @@
 import { useRef } from 'react'
 import { COMPANY, EN, PL, fmtD } from '../lib/constants.js'
-import { LOGO_B64 } from '../lib/logo.js'
+// brak importu logo
 
 export default function Preview({ doc, onSave, onBack, saving }) {
   const printRef = useRef()
@@ -53,7 +53,7 @@ export default function Preview({ doc, onSave, onBack, saving }) {
       <div>
         {/* Logo z pliku */}
         <img
-          src={LOGO_B64}
+          src="/ecocore-logo.jpg"
           alt="ECO-CORE"
           style={{ height: 48, marginBottom: 8, display: 'block' }}
         />
