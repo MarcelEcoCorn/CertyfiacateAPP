@@ -1,22 +1,17 @@
 import { useRef } from 'react'
 import { COMPANY, EN, PL, fmtD } from '../lib/constants.js'
 
-// Logo Ecocorn jako SVG inline
 const LogoSVG = () => (
-  <svg width="120" height="40" viewBox="0 0 120 40" xmlns="http://www.w3.org/2000/svg">
-    <text x="0" y="22" fontFamily="Arial Black, Arial" fontWeight="900" fontSize="20" fill="#1a6e3c" letterSpacing="1">ECO</text>
-    <text x="52" y="22" fontFamily="Arial Black, Arial" fontWeight="900" fontSize="20" fill="#5aab4a" letterSpacing="1">CORN</text>
+  <svg width="130" height="40" viewBox="0 0 130 40" xmlns="http://www.w3.org/2000/svg">
+    <text x="0" y="22" fontFamily="Arial Black, Arial" fontWeight="900" fontSize="20" fill="#1a6e3c" letterSpacing="1">ECO-</text>
+    <text x="58" y="22" fontFamily="Arial Black, Arial" fontWeight="900" fontSize="20" fill="#5aab4a" letterSpacing="1">CORE</text>
     <text x="0" y="34" fontFamily="Arial" fontSize="7" fill="#888" letterSpacing="2">THE FUTURE OF POTATO</text>
-    <circle cx="112" cy="8" r="6" fill="#5aab4a" opacity="0.3"/>
-    <circle cx="116" cy="12" r="4" fill="#1a6e3c" opacity="0.4"/>
   </svg>
 )
 
 export default function Preview({ doc, onSave, onBack, saving }) {
   const printRef = useRef()
   const isView = doc._view
-  const showQC = doc.docType === 'both' || doc.docType === 'qc'
-  const showPL = doc.docType === 'both' || doc.docType === 'pl'
   const L = doc.lang === 'PL' ? PL : EN
 
   const lots = doc.lots || []
@@ -33,15 +28,12 @@ export default function Preview({ doc, onSave, onBack, saving }) {
     if (!el) return
     const w = window.open('', '_blank')
     w.document.write(`
-      <html><head><title>Ecocorn — ${doc.certNumber}</title>
+      <html><head><title>ECO-CORE — ${doc.certNumber}</title>
       <style>
         * { box-sizing: border-box }
         body { font-family: Arial, sans-serif; font-size: 11px; margin: 20px; color: #000; background: #fff }
         table { width: 100%; border-collapse: collapse }
         td { border: 1px solid #aaa; padding: 2px 5px; font-size: 10px }
-        .logo-area { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px }
-        .company-info { font-size: 10px }
-        .doc-date { font-size: 10px; text-align: right }
         @media print { body { margin: 0; padding: 10px } }
       </style></head>
       <body>${el.innerHTML}</body></html>
@@ -62,10 +54,7 @@ export default function Preview({ doc, onSave, onBack, saving }) {
   const DocHeader = () => (
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
       <div>
-        {/* Logo */}
-        <div style={{ marginBottom: 6 }}>
-          <LogoSVG />
-        </div>
+        <div style={{ marginBottom: 6 }}><LogoSVG /></div>
         <div style={{ fontSize: 10 }}>
           {COMPANY.name}<br />
           {COMPANY.address}<br />
@@ -145,71 +134,35 @@ export default function Preview({ doc, onSave, onBack, saving }) {
       {/* Document */}
       <div style={{ padding: 20, overflow: 'auto' }}>
         <div ref={printRef}>
-
-          {/* QUALITY CERTIFICATE */}
-          {showQC && (
-            <div style={ds}>
-              <DocHeader />
-              <div style={{ textAlign: 'center', fontWeight: 'bold', fontSize: 13, borderBottom: '1px solid #000', paddingBottom: 6, marginBottom: 12 }}>
-                {L.qcTitle} No. {doc.certNumber || '___/2026/EN'}
-              </div>
-              {fields([
-                [L.buyer, `${doc.buyer}${doc.buyerAddress ? ' ' + doc.buyerAddress : ''}`],
-                [L.product, productName],
-                [L.dateLoading, fmtD(doc.dateLoading)],
-                [L.dateProd, fmtD(doc.dateProduction)],
-                [L.bestBefore, fmtD(doc.bestBefore)],
-                [L.qty, `${totalKg.toLocaleString()}kg`],
-                [L.packaging, doc.packaging],
-                [L.quality, 'According to quality specification'],
-                [L.storage, 'Temperature max 30°C, Moisture max 75%'],
-                [L.origin, doc.origin],
-              ])}
-              <div style={{ ...rr, marginTop: 4 }}>
-                <div style={kk}>Ingredients:</div>
-                <div style={vv}>
-                  100% potato.<br />
-                  {L.appearance}<br />{L.smell}<br />{L.moisture}<br />{L.impurities}<br />{L.organoleptic}
-                </div>
-              </div>
-              <div style={{ fontWeight: 'bold', fontSize: 11, margin: '10px 0 4px' }}>{L.lotNumber}:</div>
-              <LotTbl />
-              <div style={{ fontSize: 10, marginTop: 4 }}>{L.declaration}</div>
-              <Sig name="Krzysztof Wroński Quality Department" />
+          <div style={ds}>
+            <DocHeader />
+            <div style={{ textAlign: 'center', fontWeight: 'bold', fontSize: 13, borderBottom: '1px solid #000', paddingBottom: 6, marginBottom: 12 }}>
+              {L.qcTitle} No. {doc.certNumber || '___/2026/ECO'}
             </div>
-          )}
-
-          {/* PACKING LIST */}
-          {showPL && (
-            <div style={{ ...ds, marginTop: showQC ? 20 : 0, borderTop: showQC ? '2px dashed #ccc' : 'none', paddingTop: showQC ? 20 : 0 }}>
-              <DocHeader />
-              <div style={{ textAlign: 'center', fontWeight: 'bold', fontSize: 13, borderBottom: '1px solid #000', paddingBottom: 6, marginBottom: 12 }}>
-                {L.plTitle}
+            {fields([
+              [L.buyer, `${doc.buyer}${doc.buyerAddress ? ' ' + doc.buyerAddress : ''}`],
+              [L.product, productName],
+              [L.dateLoading, fmtD(doc.dateLoading)],
+              [L.dateProd, fmtD(doc.dateProduction)],
+              [L.bestBefore, fmtD(doc.bestBefore)],
+              [L.qty, `${totalKg.toLocaleString()}kg`],
+              [L.packaging, doc.packaging],
+              [L.quality, 'According to quality specification'],
+              [L.storage, 'Temperature max 30°C, Moisture max 75%'],
+              [L.origin, doc.origin],
+            ])}
+            <div style={{ ...rr, marginTop: 4 }}>
+              <div style={kk}>Ingredients:</div>
+              <div style={vv}>
+                100% potato.<br />
+                {L.appearance}<br />{L.smell}<br />{L.moisture}<br />{L.impurities}<br />{L.organoleptic}
               </div>
-              {fields([
-                [L.recipient, `${doc.buyer}${doc.buyerAddress ? ' ' + doc.buyerAddress : ''}`],
-                [L.dateLoading, fmtD(doc.dateLoading)],
-                [L.truck, doc.truckNumber],
-                [L.product, productName],
-                [L.articleCode, doc.productCode],
-                [L.bestBefore, fmtD(doc.bestBefore)],
-              ])}
-              <div style={{ fontWeight: 'bold', fontSize: 11, margin: '10px 0 4px' }}>{L.lotNumber}:</div>
-              <LotTbl />
-              <div style={{ fontSize: 10, marginTop: 4 }}>{L.declaration}</div>
-              <div style={{ marginTop: 12 }}>
-                {fields([
-                  [L.packaging, doc.packaging],
-                  ['Origin', doc.origin === 'Poland' ? 'Polska' : doc.origin],
-                  [L.pallets, doc.pallets],
-                  [L.bagWeight, `${doc.kgPerLot}`],
-                  [L.netWeight, `${totalKg.toLocaleString()}KG`],
-                  [L.grossWeight, `${(doc.grossKg || Math.round(totalKg * 1.031)).toLocaleString()}KG`],
-                ])}
-              </div>
-              <Sig name="Nikola Stolarek-Przygonska Specjalista ds. Sprzedaży" />
             </div>
-          )}
+            <div style={{ fontWeight: 'bold', fontSize: 11, margin: '10px 0 4px' }}>{L.lotNumber}:</div>
+            <LotTbl />
+            <div style={{ fontSize: 10, marginTop: 4 }}>{L.declaration}</div>
+            <Sig name="Krzysztof Wroński Quality Department" />
+          </div>
         </div>
       </div>
     </div>
