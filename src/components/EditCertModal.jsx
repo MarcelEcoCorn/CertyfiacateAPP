@@ -1,25 +1,57 @@
 import { useState, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { fmtD, addDays, yearShort, generateLots } from '../lib/constants.js'
-import { Inp, Sel, Lbl, LotGrid } from './UI.jsx'
+
+// Lokalny LotGrid — bez importu z UI.jsx żeby uniknąć circular import
+function LotGrid({ lots }) {
+  if (!lots || !lots.length) return null
+  const half = Math.ceil(lots.length / 2)
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2px 12px' }}>
+      {Array.from({ length: half }, (_, i) => (
+        <div key={i} style={{ display: 'contents' }}>
+          {[lots[i], lots[i + half]].map((lot, j) => lot ? (
+            <div key={j} style={{ display: 'flex', gap: 6, alignItems: 'center', padding: '2px 0' }}>
+              <span style={{ fontSize: 11, color: '#777', minWidth: 22, textAlign: 'right' }}>
+                {j === 0 ? i + 1 : i + half + 1}.
+              </span>
+              <span style={{ fontFamily: 'monospace', fontSize: 11, flex: 1, background: '#f4f6f8', border: '0.5px solid #ddd', borderRadius: 4, padding: '1px 6px' }}>
+                {lot.lot}
+              </span>
+              <span style={{ fontSize: 11, color: '#777', whiteSpace: 'nowrap' }}>
+                {lot.qty.toLocaleString()} kg
+              </span>
+            </div>
+          ) : <div key={j} />)}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+const iStyle = {
+  padding: '7px 10px', fontSize: 13, borderRadius: 8,
+  border: '1px solid #ddd', background: '#fff',
+  color: '#111', boxSizing: 'border-box', width: '100%',
+}
 
 export default function EditCertModal({ cert, buyers, products, packagings, saving, onSave, onClose }) {
   const [f, setF] = useState({
-    buyer:             cert.buyer || '',
-    buyerAddress:      cert.buyerAddress || '',
-    productCode:       cert.productCode || '',
-    packaging:         cert.packaging || '',
-    dateLoading:       cert.dateLoading?.slice(0, 10) || '',
-    dateProduction:    cert.dateProduction?.slice(0, 10) || '',
-    bestBefore:        cert.bestBefore?.slice(0, 10) || '',
-    origin:            cert.origin || 'Poland',
-    pallets:           cert.pallets || 1,
-    lotPrefix:         cert.lots?.[0]?.lot?.replace(/\d+$/, '') || '',
-    lotNumber:         cert.lots?.[0]?.lot?.match(/(\d+)$/)?.[1] || '',
-    manualLots:        false,
-    customLots:        cert.lots || [],
-    notes:             cert.notes || '',
-    lang:              cert.lang || 'EN',
+    buyer:          cert.buyer || '',
+    buyerAddress:   cert.buyerAddress || '',
+    productCode:    cert.productCode || '',
+    packaging:      cert.packaging || '',
+    dateLoading:    cert.dateLoading?.slice(0, 10) || '',
+    dateProduction: cert.dateProduction?.slice(0, 10) || '',
+    bestBefore:     cert.bestBefore?.slice(0, 10) || '',
+    origin:         cert.origin || 'Poland',
+    pallets:        cert.pallets || 1,
+    lotPrefix:      cert.lots?.[0]?.lot?.replace(/\d+$/, '') || '',
+    lotNumber:      cert.lots?.[0]?.lot?.match(/(\d+)$/)?.[1] || '',
+    manualLots:     false,
+    customLots:     cert.lots || [],
+    notes:          cert.notes || '',
+    lang:           cert.lang || 'EN',
   })
 
   function sf(k, v) { setF(p => ({ ...p, [k]: v })) }
@@ -54,12 +86,6 @@ export default function EditCertModal({ cert, buyers, products, packagings, savi
       notes:          f.notes,
       lang:           f.lang,
     })
-  }
-
-  const iStyle = {
-    padding: '7px 10px', fontSize: 13, borderRadius: 8,
-    border: '1px solid #ddd', background: '#fff',
-    color: '#111', boxSizing: 'border-box', width: '100%',
   }
 
   return createPortal(
@@ -188,8 +214,8 @@ export default function EditCertModal({ cert, buyers, products, packagings, savi
                 {f.customLots.map((lot, i) => (
                   <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 6, alignItems: 'center' }}>
                     <span style={{ fontSize: 12, color: '#777', minWidth: 22 }}>{i + 1}.</span>
-                    <input value={lot.lot} onChange={v => { const c = [...f.customLots]; c[i] = { ...c[i], lot: v.target.value }; sf('customLots', c) }} style={{ ...iStyle, flex: 2 }} />
-                    <input type="number" value={lot.qty} onChange={v => { const c = [...f.customLots]; c[i] = { ...c[i], qty: Number(v.target.value) }; sf('customLots', c) }} style={{ ...iStyle, width: 90 }} />
+                    <input value={lot.lot} onChange={e => { const c = [...f.customLots]; c[i] = { ...c[i], lot: e.target.value }; sf('customLots', c) }} style={{ ...iStyle, flex: 2 }} />
+                    <input type="number" value={lot.qty} onChange={e => { const c = [...f.customLots]; c[i] = { ...c[i], qty: Number(e.target.value) }; sf('customLots', c) }} style={{ ...iStyle, width: 90 }} />
                     <span style={{ fontSize: 12, color: '#777' }}>kg</span>
                     <button onClick={() => sf('customLots', f.customLots.filter((_, j) => j !== i))} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#a32d2d', fontSize: 16 }}>×</button>
                   </div>
