@@ -269,3 +269,29 @@ function dbToApp(row) {
     createdAt:      row.created_at,
   }
 }
+
+export async function updateCertificate(id, doc) {
+  const { data, error } = await supabase
+    .from('certificates')
+    .update({
+      buyer:           doc.buyer,
+      buyer_address:   doc.buyerAddress || '',
+      product_code:    doc.productCode,
+      product_name:    doc.productName,
+      date_loading:    doc.dateLoading,
+      date_production: doc.dateProduction,
+      best_before:     doc.bestBefore,
+      packaging:       doc.packaging,
+      origin:          doc.origin,
+      pallets:         doc.pallets,
+      kg_per_lot:      doc.kgPerLot,
+      total_kg:        doc.totalKg,
+      lots:            doc.lots,
+      notes:           doc.notes || '',
+      lang:            doc.lang,
+    })
+    .eq('id', id)
+    .select().single()
+  if (error) throw error
+  return dbToApp(data)
+}
