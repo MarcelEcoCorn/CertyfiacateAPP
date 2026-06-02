@@ -113,7 +113,7 @@ export async function fetchProducts() {
 export async function saveProduct(code, nameEn, namePl) {
   const { data, error } = await supabase
     .from('products')
-    .upsert({ code, name_en: nameEn, name_pl: namePl }, { onConflict: 'code' })
+    .insert({ code, name_en: nameEn, name_pl: namePl })
     .select().single()
   if (error) throw error
   return { id: data.id, code: data.code, name: data.name_en, namePL: data.name_pl }
