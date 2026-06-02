@@ -152,6 +152,7 @@ export default function Preview({ doc, onSave, onBack, saving }) {
               [L.quality, 'According to quality specification'],
               [L.storage, 'Temperature max 30°C, Moisture max 75%'],
               [L.origin, doc.origin],
+              ...(doc.notes ? [['Notes', doc.notes]] : []),
             ])}
             <div style={{ ...rr, marginTop: 4 }}>
               <div style={kk}>Ingredients:</div>
