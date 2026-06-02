@@ -1,6 +1,5 @@
 import { useRef } from 'react'
 import { COMPANY, EN, PL, fmtD } from '../lib/constants.js'
-// brak importu logo
 
 export default function Preview({ doc, onSave, onBack, saving }) {
   const printRef = useRef()
@@ -10,15 +9,12 @@ export default function Preview({ doc, onSave, onBack, saving }) {
   const lots = doc.lots || []
   const totalKg = doc.totalKg || lots.reduce((s, l) => s + (Number(l.qty) || 0), 0)
   const productName = doc.productName || ''
+  const certNum = doc.certNumber || '___/2026/ECO'
 
-  // 17 wierszy × 2 kolumny — dokładnie jak w oryginale
   const rows = Array.from({ length: 17 }, (_, i) => ({
     nL: i + 1, lotL: lots[i]?.lot || '', qtyL: lots[i] ? `${lots[i].qty}kg` : '',
     nR: i + 18, lotR: lots[i + 17]?.lot || '', qtyR: lots[i + 17] ? `${lots[i + 17].qty}kg` : '',
   }))
-
-  // Numer certyfikatu — albo już nadany (po zapisie) albo placeholder
-  const certNum = doc.certNumber || '___/2026/ECO'
 
   function printDoc() {
     const el = printRef.current
@@ -51,11 +47,11 @@ export default function Preview({ doc, onSave, onBack, saving }) {
   const DocHeader = () => (
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
       <div>
-        {/* Logo z pliku */}
         <img
           src="/ecocore-logo.jpg"
           alt="ECO-CORE"
           style={{ height: 48, marginBottom: 8, display: 'block' }}
+          onError={e => { e.target.style.display = 'none' }}
         />
         <div style={{ fontSize: 10 }}>
           {COMPANY.name}<br />
@@ -104,7 +100,6 @@ export default function Preview({ doc, onSave, onBack, saving }) {
 
   return (
     <div style={{ fontFamily: "'Segoe UI', system-ui, sans-serif" }}>
-      {/* Toolbar */}
       <div style={{
         borderBottom: '0.5px solid var(--color-border-tertiary)',
         padding: '11px 20px', background: 'var(--color-background-primary)',
@@ -133,7 +128,6 @@ export default function Preview({ doc, onSave, onBack, saving }) {
         </div>
       </div>
 
-      {/* Dokument */}
       <div style={{ padding: 20, overflow: 'auto' }}>
         <div ref={printRef}>
           <div style={ds}>
