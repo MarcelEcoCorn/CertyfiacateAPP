@@ -31,7 +31,7 @@ export default function App() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
   const [preview, setPreview] = useState(null)
-  const [importModal, setImportModal] = useState(null) // 'buyers' | 'products' | 'packagings'
+  const [importModal, setImportModal] = useState(null)
 
   const [filterCertNum, setFilterCertNum] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
@@ -56,15 +56,14 @@ export default function App() {
 
   // ── Form ──
   const [lang, setLang] = useState('EN')
-  const [docType, setDocType] = useState('both')
+  const [docType, setDocType] = useState('qc')
   const [f, setF] = useState({
     buyerName: '', buyerAddress: '', buyerId: null,
     productCode: '', packaging: '',
-    pallets: 9,
-    lotPrefix: '', lotNumber: '', // zmiana: lotNumber zamiast lotSerial
+    pallets: 9, lotPrefix: '', lotNumber: '',
     manualLots: false, customLots: [],
     dateLoading: today(), dateProduction: '',
-    bestBeforeOverride: '', // nadpisanie terminu ważności
+    bestBeforeOverride: '',
     truckNumber: '', origin: 'Poland',
   })
 
@@ -97,7 +96,6 @@ export default function App() {
     const d = new Date(f.dateLoading); d.setDate(d.getDate() - 1); return d.toISOString().slice(0, 10)
   })()
 
-  // Termin ważności: override lub automatyczny +365 dni
   const bestBefore = f.bestBeforeOverride || addDays(dateProd, 365)
 
   const autoLots = useMemo(
@@ -127,7 +125,6 @@ export default function App() {
       origin: f.origin, truckNumber: f.truckNumber,
       lots: activeLots, totalKg, grossKg, pallets: numPallets, kgPerLot,
       lang, docType, status: 'saved',
-      // Numer certyfikatu NIE jest tu — zostanie nadany po kliknięciu "Zapisz" w bazie
     })
   }
 
@@ -136,10 +133,8 @@ export default function App() {
     try {
       if (doc.buyer && !buyers.find(b => b.name === doc.buyer))
         await saveBuyer({ name: doc.buyer, address: doc.buyerAddress || '' })
-      // saveCertificate automatycznie pobiera i inkrementuje numer z bazy
       const saved = await saveCertificate(doc)
       setCerts(c => [saved, ...c])
-      // Odśwież licznik po zapisie
       const newCounter = await fetchCurrentCounter()
       setNextCounter(newCounter)
       setPreview(null); setTab(1)
@@ -180,8 +175,12 @@ export default function App() {
   async function handleUpdateBuyer() {
     if (!editBuyer?.name?.trim()) return
     try {
-      const b = await updateBuyer(editBuyer.id, { name: editBuyer.name, address: editBuyer.address, nip: editBuyer.nip, deliveryAddress: editBuyer.delivery_address })
-      setBuyers(prev => prev.map(x => x.id === b.id ? b : x)); setEditBuyer(null)
+      const b = await updateBuyer(editBuyer.id, {
+        name: editBuyer.name, address: editBuyer.address,
+        nip: editBuyer.nip, deliveryAddress: editBuyer.delivery_address,
+      })
+      setBuyers(prev => prev.map(x => x.id === b.id ? b : x))
+      setEditBuyer(null)
     } catch (e) { setError('Błąd: ' + e.message) }
   }
 
@@ -202,7 +201,6 @@ export default function App() {
       } catch {}
     }
     setBuyers(prev => [...prev].sort((a, b) => a.name.localeCompare(b.name)))
-    setError(null)
     alert(`Zaimportowano ${ok} klientów`)
   }
 
@@ -225,7 +223,8 @@ export default function App() {
     if (!editProd) return
     try {
       const p = await updateProduct(editProd.id, editProd.code, editProd.name, editProd.namePL)
-      setProducts(prev => prev.map(x => x.id === p.id ? p : x)); setEditProd(null)
+      setProducts(prev => prev.map(x => x.id === p.id ? p : x))
+      setEditProd(null)
     } catch (e) { setError('Błąd: ' + e.message) }
   }
 
@@ -264,7 +263,8 @@ export default function App() {
     if (!editPack) return
     try {
       const p = await updatePackaging(editPack.id, editPack.labelPL, editPack.label, Number(editPack.bagKg), Number(editPack.bagsPerPallet), editPack.buyerId || null)
-      setPackagings(prev => prev.map(x => x.id === p.id ? p : x)); setEditPack(null)
+      setPackagings(prev => prev.map(x => x.id === p.id ? p : x))
+      setEditPack(null)
     } catch (e) { setError('Błąd: ' + e.message) }
   }
 
@@ -294,20 +294,26 @@ export default function App() {
   function sa(k, v) { setArch(p => ({ ...p, [k]: v })) }
 
   async function handleArchiveSave() {
-    if (!arch.certNumber.trim() || !arch.buyerName.trim() || !arch.lotNumber.trim()) { setError('Uzupełnij: numer certyfikatu, nabywcę i numer LOT'); return }
+    if (!arch.certNumber.trim() || !arch.buyerName.trim() || !arch.lotNumber.trim()) {
+      setError('Uzupełnij: numer certyfikatu, nabywcę i numer LOT'); return
+    }
     const ap = packagings.find(p => p.value === arch.packaging) || packagings[0]
     if (!ap) { setError('Wybierz opakowanie'); return }
     const akpL = ap.bagKg * ap.bagsPerPallet
     const alots = generateLots(arch.lotPrefix, arch.lotNumber, Number(arch.pallets), akpL)
-    const aprod = arch.dateProduction || (() => { const d = new Date(arch.dateLoading); d.setDate(d.getDate() - 1); return d.toISOString().slice(0, 10) })()
+    const aprod = arch.dateProduction || (() => {
+      const d = new Date(arch.dateLoading); d.setDate(d.getDate() - 1); return d.toISOString().slice(0, 10)
+    })()
     const archProd = products.find(p => p.code === arch.productCode) || products[0]
     const doc = {
       certNumber: arch.certNumber, buyer: arch.buyerName, buyerAddress: arch.buyerAddress,
       productCode: arch.productCode || archProd?.code || '', productName: archProd?.name || '',
       dateLoading: arch.dateLoading, dateProduction: aprod, bestBefore: addDays(aprod, 365),
       packaging: ap.label, origin: 'Poland', truckNumber: arch.truckNumber,
-      lots: alots, totalKg: Number(arch.pallets) * akpL, grossKg: Math.round(Number(arch.pallets) * akpL * 1.031),
-      pallets: Number(arch.pallets), kgPerLot: akpL, lang: 'EN', docType: 'both', status: 'archived', sentDate: arch.sentDate,
+      lots: alots, totalKg: Number(arch.pallets) * akpL,
+      grossKg: Math.round(Number(arch.pallets) * akpL * 1.031),
+      pallets: Number(arch.pallets), kgPerLot: akpL,
+      lang: 'EN', docType: 'qc', status: 'archived', sentDate: arch.sentDate,
     }
     setSaving(true)
     try {
@@ -327,14 +333,20 @@ export default function App() {
 
   const filteredPackagings = useMemo(() => {
     let list = [...packagings]
-    if (packFilter) { const q = packFilter.toLowerCase(); list = list.filter(p => p.label?.toLowerCase().includes(q) || p.labelPL?.toLowerCase().includes(q) || p.buyerName?.toLowerCase().includes(q)) }
+    if (packFilter) {
+      const q = packFilter.toLowerCase()
+      list = list.filter(p => p.label?.toLowerCase().includes(q) || p.labelPL?.toLowerCase().includes(q) || p.buyerName?.toLowerCase().includes(q))
+    }
     if (packSort === 'name') list.sort((a, b) => (a.labelPL || a.label || '').localeCompare(b.labelPL || b.label || ''))
     if (packSort === 'kg') list.sort((a, b) => a.bagKg - b.bagKg)
     if (packSort === 'client') list.sort((a, b) => (a.buyerName || '').localeCompare(b.buyerName || ''))
     return list
   }, [packagings, packFilter, packSort])
 
-  const buyerOptions = [{ value: '', label: '— Dla wszystkich klientów —' }, ...buyers.map(b => ({ value: String(b.id), label: b.name }))]
+  const buyerOptions = [
+    { value: '', label: '— Dla wszystkich klientów —' },
+    ...buyers.map(b => ({ value: String(b.id), label: b.name }))
+  ]
   const packLabel = p => `${p.labelPL || p.label} → ${(p.bagKg * p.bagsPerPallet).toLocaleString()} kg/paleta${p.buyerName ? ` 👤 ${p.buyerName}` : ' 🌐'}`
 
   if (preview) return <Preview doc={preview} onSave={handleSave} onBack={() => setPreview(null)} saving={saving} />
@@ -347,30 +359,42 @@ export default function App() {
     whiteSpace: 'nowrap',
   })
 
-  const editBoxStyle = { background: 'var(--color-background-secondary)', border: '0.5px solid var(--color-border-secondary)', borderRadius: 10, padding: '12px 14px', marginBottom: 8 }
+  const editBoxStyle = {
+    background: 'var(--color-background-secondary)',
+    border: '0.5px solid var(--color-border-secondary)',
+    borderRadius: 10, padding: '12px 14px', marginBottom: 8,
+  }
+
   const listHeight = `calc(100vh - ${headerHeight}px - 20px)`
 
   return (
     <div style={{ fontFamily: "'Segoe UI', system-ui, sans-serif", maxWidth: 900, margin: '0 auto', height: '100vh', display: 'flex', flexDirection: 'column' }}>
 
       {/* HEADER */}
-      <div ref={headerRef} style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100, background: 'var(--color-background-primary)', borderBottom: '1px solid var(--color-border-tertiary)', boxShadow: '0 2px 12px rgba(0,0,0,0.08)' }}>
+      <div ref={headerRef} style={{
+        position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100,
+        background: 'var(--color-background-primary)',
+        borderBottom: '1px solid var(--color-border-tertiary)',
+        boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
+      }}>
         <div style={{ maxWidth: 900, margin: '0 auto', padding: '14px 20px 0' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
             <div>
-              <div style={{ fontSize: 18, fontWeight: 500, letterSpacing: 1 }}>🌿 ECOCORN</div>
+              <div style={{ fontSize: 18, fontWeight: 500, letterSpacing: 1 }}>🌿 ECO-CORE</div>
               <div style={{ fontSize: 11, color: 'var(--color-text-secondary)' }}>System certyfikatów jakości · Eco-corn Sp. z o.o.</div>
             </div>
             <div style={{ textAlign: 'right' }}>
               <div style={{ fontSize: 11, color: 'var(--color-text-secondary)' }}>Następny nr certyfikatu</div>
-              <div style={{ fontSize: 16, fontWeight: 500 }}>{nextCounter}/2026/EN</div>
+              <div style={{ fontSize: 16, fontWeight: 500 }}>{nextCounter}/{new Date().getFullYear()}/ECO</div>
             </div>
           </div>
           <div style={{ display: 'flex', overflowX: 'auto' }}>
             {['Nowy dokument', 'Baza certyfikatów', 'Archiwum', 'Klienci', 'Produkty', 'Opakowania'].map((t, i) => (
               <button key={t} onClick={() => setTab(i)} style={tabStyle(i)}>{t}</button>
             ))}
-            <button onClick={loadAll} style={{ marginLeft: 'auto', padding: '4px 10px', border: '0.5px solid var(--color-border-tertiary)', borderRadius: 7, background: 'transparent', cursor: 'pointer', fontSize: 12, color: 'var(--color-text-secondary)', whiteSpace: 'nowrap' }}>↺ Odśwież</button>
+            <button onClick={loadAll} style={{ marginLeft: 'auto', padding: '4px 10px', border: '0.5px solid var(--color-border-tertiary)', borderRadius: 7, background: 'transparent', cursor: 'pointer', fontSize: 12, color: 'var(--color-text-secondary)', whiteSpace: 'nowrap' }}>
+              ↺ Odśwież
+            </button>
           </div>
         </div>
       </div>
@@ -383,13 +407,13 @@ export default function App() {
         {tab === 0 && (
           <div style={{ overflowY: 'auto', padding: '18px 20px 40px' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <Sec label="Typ dokumentu"><Toggle options={[['both', 'QC + Packing List'], ['qc', 'Quality Certificate'], ['pl', 'Packing List']]} value={docType} onChange={setDocType} /></Sec>
-                <Sec label="Język dokumentu"><Toggle options={[['EN', 'English'], ['PL', 'Polski']]} value={lang} onChange={setLang} /></Sec>
-              </div>
+
+              <Sec label="Język dokumentu">
+                <Toggle options={[['EN', 'English'], ['PL', 'Polski']]} value={lang} onChange={setLang} />
+              </Sec>
 
               <Sec label="Nabywca">
-                <Lbl>Wybierz klienta z bazy <span style={{ fontSize: 10, color: 'var(--color-text-secondary)' }}>(lub wpisz ręcznie)</span></Lbl>
+                <Lbl>Wybierz klienta z bazy lub wpisz ręcznie</Lbl>
                 <BuyerCombo value={f.buyerName} buyers={buyers}
                   onSelect={b => b
                     ? setF(p => ({ ...p, buyerName: b.name, buyerAddress: b.delivery_address || b.address || '', buyerId: b.id }))
@@ -405,11 +429,13 @@ export default function App() {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                   <div>
                     <Lbl>Produkt</Lbl>
-                    <Sel value={f.productCode} onChange={onProductChange} options={products.map(p => ({ value: p.code, label: `${p.code} — ${p.name}` }))} />
+                    <Sel value={f.productCode} onChange={onProductChange}
+                      options={products.map(p => ({ value: p.code, label: `${p.code} — ${p.name}` }))} />
                   </div>
                   <div>
                     <Lbl>Opakowanie <span style={{ fontSize: 10, color: 'var(--color-text-secondary)' }}>→ {kgPerLot.toLocaleString()} kg/paleta</span></Lbl>
-                    <Sel value={f.packaging} onChange={v => sf('packaging', v)} options={availablePackagings.map(p => ({ value: p.value, label: packLabel(p) }))} />
+                    <Sel value={f.packaging} onChange={v => sf('packaging', v)}
+                      options={availablePackagings.map(p => ({ value: p.value, label: packLabel(p) }))} />
                   </div>
                 </div>
               </Sec>
@@ -432,7 +458,8 @@ export default function App() {
                   </div>
                   <div>
                     <Lbl>Kraj pochodzenia</Lbl>
-                    <Sel value={f.origin} onChange={v => sf('origin', v)} options={[{ value: 'Poland', label: 'Poland' }, { value: 'Polska', label: 'Polska' }]} />
+                    <Sel value={f.origin} onChange={v => sf('origin', v)}
+                      options={[{ value: 'Poland', label: 'Poland' }, { value: 'Polska', label: 'Polska' }]} />
                   </div>
                 </div>
 
@@ -443,13 +470,17 @@ export default function App() {
                         ✓ {autoLots.length} palet · numer partii: <strong>{f.lotPrefix}{f.lotNumber}</strong> · {totalKg.toLocaleString()} kg łącznie
                       </span>
                       <button onClick={() => setF(p => ({ ...p, manualLots: true, customLots: autoLots.map(l => ({ ...l })) }))}
-                        style={{ fontSize: 11, border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--color-text-secondary)', textDecoration: 'underline' }}>Edytuj ręcznie</button>
+                        style={{ fontSize: 11, border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--color-text-secondary)', textDecoration: 'underline' }}>
+                        Edytuj ręcznie
+                      </button>
                     </div>
                     <LotGrid lots={autoLots} />
                   </div>
                 )}
                 {!f.manualLots && !autoLots.length && (
-                  <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', padding: '6px 0' }}>← Wpisz numer partii aby wygenerować tabelę LOT</div>
+                  <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', padding: '6px 0' }}>
+                    ← Wpisz numer partii aby wygenerować tabelę LOT
+                  </div>
                 )}
                 {f.manualLots && (
                   <div>
@@ -475,31 +506,35 @@ export default function App() {
 
               <Sec label="Daty i transport">
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 10 }}>
-                  <div><Lbl>Data załadunku</Lbl><Inp type="date" value={f.dateLoading} onChange={v => sf('dateLoading', v)} /></div>
+                  <div>
+                    <Lbl>Data załadunku</Lbl>
+                    <Inp type="date" value={f.dateLoading} onChange={v => sf('dateLoading', v)} />
+                  </div>
                   <div>
                     <Lbl>Data produkcji <span style={{ fontSize: 10, color: 'var(--color-text-secondary)' }}>(domyślnie dzień przed)</span></Lbl>
                     <Inp type="date" value={f.dateProduction || dateProd} onChange={v => sf('dateProduction', v)} />
                   </div>
-                  <div><Lbl>Numer ciężarówki</Lbl><Inp value={f.truckNumber} onChange={v => sf('truckNumber', v)} placeholder="MGK015/LN057" /></div>
+                  <div>
+                    <Lbl>Numer ciężarówki</Lbl>
+                    <Inp value={f.truckNumber} onChange={v => sf('truckNumber', v)} placeholder="MGK015/LN057" />
+                  </div>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                   <div>
                     <Lbl>Data przydatności <span style={{ fontSize: 10, color: 'var(--color-text-secondary)' }}>(auto: data produkcji + 365 dni)</span></Lbl>
                     <Inp type="date" value={f.bestBeforeOverride || bestBefore}
                       onChange={v => {
-                        // Jeśli użytkownik zmienia na datę inną niż auto — zapisz override
                         const auto = addDays(dateProd, 365)
                         sf('bestBeforeOverride', v === auto ? '' : v)
                       }} />
                   </div>
                   <div style={{ display: 'flex', alignItems: 'flex-end', paddingBottom: 2 }}>
-                    {f.bestBeforeOverride && (
+                    {f.bestBeforeOverride ? (
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <span style={{ fontSize: 12, background: '#fff3cd', color: '#856404', padding: '3px 10px', borderRadius: 8 }}>⚠ Data ręczna</span>
                         <button onClick={() => sf('bestBeforeOverride', '')} style={{ fontSize: 12, border: 'none', background: 'transparent', cursor: 'pointer', color: '#a32d2d', textDecoration: 'underline' }}>Przywróć auto</button>
                       </div>
-                    )}
-                    {!f.bestBeforeOverride && (
+                    ) : (
                       <span style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>= {fmtD(bestBefore)} (auto)</span>
                     )}
                   </div>
@@ -514,7 +549,7 @@ export default function App() {
                   ['Kg netto', `${totalKg.toLocaleString()} kg`],
                   ['Kg brutto', `${grossKg.toLocaleString()} kg`],
                   ['Termin ważności', fmtD(bestBefore)],
-                  ['Nr certyfikatu', `${nextCounter}/2026/EN (po zapisie)`],
+                  ['Nr certyfikatu', `${nextCounter}/${new Date().getFullYear()}/ECO (po zapisie)`],
                 ].map(([k, v]) => (
                   <div key={k}>
                     <div style={{ fontSize: 10, color: 'var(--color-text-secondary)' }}>{k}</div>
@@ -533,8 +568,9 @@ export default function App() {
                 <button disabled={formErrors.length > 0 || loading} onClick={openPreview} style={{
                   padding: '10px 28px', background: formErrors.length > 0 || loading ? '#ccc' : '#0f6e56',
                   color: '#fff', border: 'none', borderRadius: 10,
-                  cursor: formErrors.length > 0 || loading ? 'not-allowed' : 'pointer', fontSize: 14, fontWeight: 500,
-                }}>Podgląd dokumentów →</button>
+                  cursor: formErrors.length > 0 || loading ? 'not-allowed' : 'pointer',
+                  fontSize: 14, fontWeight: 500,
+                }}>Podgląd i generuj certyfikat →</button>
               </div>
             </div>
           </div>
@@ -545,20 +581,26 @@ export default function App() {
           <PageLayout topZone={
             <div style={{ padding: '12px 20px 0' }}>
               <div style={{ display: 'grid', gridTemplateColumns: '160px 1fr 180px 160px', gap: 10, marginBottom: 10 }}>
-                <div><Lbl>Nr certyfikatu</Lbl><Inp value={filterCertNum} onChange={setFilterCertNum} placeholder="np. 96/2026" /></div>
+                <div><Lbl>Nr certyfikatu</Lbl><Inp value={filterCertNum} onChange={setFilterCertNum} placeholder="np. 200/2026" /></div>
                 <div><Lbl>Klient</Lbl><Inp value={filterBuyer} onChange={setFilterBuyer} placeholder="Szukaj klienta..." /></div>
                 <div><Lbl>Status</Lbl>
-                  <Sel value={filterStatus} onChange={setFilterStatus} options={[{ value: '', label: 'Wszystkie statusy' }, { value: 'saved', label: 'Zapisany' }, { value: 'sent', label: 'Wysłany' }, { value: 'archived', label: 'Archiwum' }]} />
+                  <Sel value={filterStatus} onChange={setFilterStatus} options={[
+                    { value: '', label: 'Wszystkie statusy' }, { value: 'saved', label: 'Zapisany' },
+                    { value: 'sent', label: 'Wysłany' }, { value: 'archived', label: 'Archiwum' },
+                  ]} />
                 </div>
                 <div><Lbl>Produkt</Lbl>
-                  <Sel value={filterProduct} onChange={setFilterProduct} options={[{ value: '', label: 'Wszystkie' }, ...products.map(p => ({ value: p.code, label: p.code }))]} />
+                  <Sel value={filterProduct} onChange={setFilterProduct}
+                    options={[{ value: '', label: 'Wszystkie' }, ...products.map(p => ({ value: p.code, label: p.code }))]} />
                 </div>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
                 <span style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>{filteredCerts.length} certyfikatów</span>
                 {(filterCertNum || filterBuyer || filterStatus || filterProduct) && (
                   <button onClick={() => { setFilterCertNum(''); setFilterBuyer(''); setFilterStatus(''); setFilterProduct('') }}
-                    style={{ fontSize: 12, border: 'none', background: 'transparent', cursor: 'pointer', color: '#a32d2d' }}>✕ Wyczyść filtry</button>
+                    style={{ fontSize: 12, border: 'none', background: 'transparent', cursor: 'pointer', color: '#a32d2d' }}>
+                    ✕ Wyczyść filtry
+                  </button>
                 )}
               </div>
             </div>
@@ -590,14 +632,22 @@ export default function App() {
               {archOpen && (
                 <Sec label="Dodaj certyfikat archiwalny" style={{ marginBottom: 12 }}>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
-                    <div><Lbl>Nr certyfikatu *</Lbl><Inp value={arch.certNumber} onChange={v => sa('certNumber', v)} placeholder="94/2026/EN" /></div>
+                    <div><Lbl>Nr certyfikatu *</Lbl><Inp value={arch.certNumber} onChange={v => sa('certNumber', v)} placeholder="200/2026/ECO" /></div>
                     <div><Lbl>Nabywca *</Lbl>
                       <BuyerCombo value={arch.buyerName} buyers={buyers}
-                        onSelect={b => b ? setArch(a => ({ ...a, buyerName: b.name, buyerAddress: b.delivery_address || b.address || '' })) : setArch(a => ({ ...a, buyerName: '', buyerAddress: '' }))}
-                        placeholder="Wybierz nabywcę..." />
+                        onSelect={b => b
+                          ? setArch(a => ({ ...a, buyerName: b.name, buyerAddress: b.delivery_address || b.address || '' }))
+                          : setArch(a => ({ ...a, buyerName: '', buyerAddress: '' }))
+                        } placeholder="Wybierz nabywcę..." />
                     </div>
-                    <div><Lbl>Produkt</Lbl><Sel value={arch.productCode || (products[0]?.code || '')} onChange={v => sa('productCode', v)} options={products.map(p => ({ value: p.code, label: `${p.code} — ${p.name}` }))} /></div>
-                    <div><Lbl>Opakowanie</Lbl><Sel value={arch.packaging || (packagings[0]?.value || '')} onChange={v => sa('packaging', v)} options={packagings.map(p => ({ value: p.value, label: packLabel(p) }))} /></div>
+                    <div><Lbl>Produkt</Lbl>
+                      <Sel value={arch.productCode || (products[0]?.code || '')} onChange={v => sa('productCode', v)}
+                        options={products.map(p => ({ value: p.code, label: `${p.code} — ${p.name}` }))} />
+                    </div>
+                    <div><Lbl>Opakowanie</Lbl>
+                      <Sel value={arch.packaging || (packagings[0]?.value || '')} onChange={v => sa('packaging', v)}
+                        options={packagings.map(p => ({ value: p.value, label: packLabel(p) }))} />
+                    </div>
                     <div><Lbl>Liczba palet</Lbl><Inp type="number" min="1" value={arch.pallets} onChange={v => sa('pallets', v)} /></div>
                     <div><Lbl>Prefiks LOT</Lbl><Inp value={arch.lotPrefix} onChange={v => sa('lotPrefix', v)} /></div>
                     <div><Lbl>Numer partii LOT *</Lbl><Inp value={arch.lotNumber} onChange={v => sa('lotNumber', v)} placeholder="171" /></div>
@@ -818,7 +868,9 @@ export default function App() {
                           <Sel value={editPack.buyerId ? String(editPack.buyerId) : ''} onChange={v => sek('buyerId', v || null)} options={buyerOptions} />
                         </div>
                         {editPack.bagKg && editPack.bagsPerPallet && (
-                          <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginBottom: 10 }}>→ {(Number(editPack.bagKg) * Number(editPack.bagsPerPallet)).toLocaleString()} kg / paleta</div>
+                          <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginBottom: 10 }}>
+                            → {(Number(editPack.bagKg) * Number(editPack.bagsPerPallet)).toLocaleString()} kg / paleta
+                          </div>
                         )}
                         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
                           <button onClick={() => setEditPack(null)} style={{ padding: '6px 14px', border: '0.5px solid var(--color-border-tertiary)', borderRadius: 7, background: 'transparent', cursor: 'pointer', fontSize: 13 }}>Anuluj</button>
