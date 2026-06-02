@@ -97,7 +97,7 @@ export default function App() {
     const d = new Date(f.dateLoading); d.setDate(d.getDate() - 1); return d.toISOString().slice(0, 10)
   })()
 
-  const bestBefore = f.bestBeforeOverride || addDays(dateProd, 365)
+  const bestBefore = f.bestBeforeOverride || addDays(dateProd, 364)
 
   const autoLots = useMemo(
     () => generateLots(f.lotPrefix, f.lotNumber, numPallets, kgPerLot),
@@ -309,7 +309,7 @@ export default function App() {
     const doc = {
       certNumber: arch.certNumber, buyer: arch.buyerName, buyerAddress: arch.buyerAddress,
       productCode: arch.productCode || archProd?.code || '', productName: archProd?.name || '',
-      dateLoading: arch.dateLoading, dateProduction: aprod, bestBefore: addDays(aprod, 365),
+      dateLoading: arch.dateLoading, dateProduction: aprod, bestBefore: addDays(aprod, 364),
       packaging: ap.label, origin: 'Poland', truckNumber: arch.truckNumber,
       lots: alots, totalKg: Number(arch.pallets) * akpL,
       grossKg: Math.round(Number(arch.pallets) * akpL * 1.031),
@@ -539,7 +539,7 @@ export default function App() {
                     <Lbl>Data przydatności <span style={{ fontSize: 10, color: 'var(--color-text-secondary)' }}>(auto: data produkcji + 365 dni)</span></Lbl>
                     <Inp type="date" value={f.bestBeforeOverride || bestBefore}
                       onChange={v => {
-                        const auto = addDays(dateProd, 365)
+                        const auto = addDays(dateProd, 364)
                         sf('bestBeforeOverride', v === auto ? '' : v)
                       }} />
                   </div>
