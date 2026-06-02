@@ -90,9 +90,11 @@ export default function App() {
   }, [availablePackagings])
 
   const availablePackagings = useMemo(() => {
-    if (!f.buyerId) return packagings.filter(p => !p.buyerId)
-    return packagings.filter(p => !p.buyerId || p.buyerId === f.buyerId)
-  }, [packagings, f.buyerId])
+    if (!packagings?.length) return []
+    const bid = f?.buyerId ?? null
+    if (!bid) return packagings.filter(p => !p.buyerId)
+    return packagings.filter(p => !p.buyerId || p.buyerId === bid)
+  }, [packagings, f?.buyerId])
 
   const packInfo = availablePackagings.find(p => p.value === f.packaging) || availablePackagings[0]
   const product = products.find(p => p.code === f.productCode) || products[0]
