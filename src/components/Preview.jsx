@@ -88,7 +88,7 @@ export default function Preview({ doc, onSave, onBack, saving }) {
       <div style={{ fontSize: 10, marginBottom: 16 }}>{name}</div>
       <div style={{ display: 'inline-block', border: '1px solid #999', padding: '4px 12px', fontSize: 10 }}>
         <div style={{ fontWeight: 'bold' }}>{COMPANY.name}</div>
-        <div>44-144 Nieborowice, Mysia Góra 18</div>
+        <div>44-144 Nieborowice, Mysia Góra 18A</div>
         <div>NIP: {COMPANY.nip} · REGON: {COMPANY.regon}</div>
       </div>
     </div>
