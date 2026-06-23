@@ -41,13 +41,16 @@ export const EN = {
   dateProd: 'Date of production', bestBefore: 'Best before', qty: 'Quantity',
   packaging: 'Packaging', quality: 'Quality', storage: 'Storage conditions',
   origin: 'Country of origin', lotNumber: 'Lot number, amount',
-  articleCode: 'Article Code',
+  articleCode: 'Article Code', notes: 'Notes', ingredients: 'Ingredients',
+  qualityValue: 'According to quality specification',
+  storageValue: 'Temperature max 30°C, Moisture max 75%',
   declaration: 'The product complies with Product Specification and legal requirements.',
   appearance: 'Appearance and color: Color from cream to yellow',
   smell: 'Smell and taste: typical for dried potato.',
   moisture: 'Moisture: max. 9%.',
   impurities: 'Content of mechanical/ferromagnetic impurities: absence.',
   organoleptic: 'Organoleptic quality check: good.',
+  defaultDescription: '100% potato.\nAppearance and color: Color from cream to yellow\nSmell and taste: typical for dried potato.\nMoisture: max. 9%.\nContent of mechanical/ferromagnetic impurities: absence.\nOrganoleptic quality check: good.',
 }
 
 export const PL = {
@@ -56,11 +59,14 @@ export const PL = {
   dateProd: 'Data produkcji', bestBefore: 'Termin ważności', qty: 'Ilość',
   packaging: 'Opakowanie', quality: 'Jakość', storage: 'Warunki przechowywania',
   origin: 'Kraj pochodzenia', lotNumber: 'Numer partii, ilość',
-  articleCode: 'Kod artykułu',
+  articleCode: 'Kod artykułu', notes: 'Uwagi', ingredients: 'Składniki',
+  qualityValue: 'Zgodnie ze specyfikacją produktu',
+  storageValue: 'Temperatura maks. 30°C, Wilgotność maks. 75%',
   declaration: 'Produkt jest zgodny ze Specyfikacją Produktu i wymogami prawnymi.',
   appearance: 'Wygląd i kolor: od kremowego do żółtego',
   smell: 'Zapach i smak: typowy dla suszonego ziemniaka.',
   moisture: 'Wilgotność: maks. 9%.',
   impurities: 'Zawartość zanieczyszczeń: brak.',
   organoleptic: 'Ocena organoleptyczna: dobra.',
+  defaultDescription: '100% ziemniaka.\nWygląd i kolor: od kremowego do żółtego\nZapach i smak: typowy dla suszonego ziemniaka.\nWilgotność: maks. 9%.\nZawartość zanieczyszczeń: brak.\nOcena organoleptyczna: dobra.',
 }
