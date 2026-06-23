@@ -7,7 +7,9 @@ export default function Preview({ doc, onSave, onBack, saving }) {
   const L = doc.lang === 'PL' ? PL : EN
 
   const lots = doc.lots || []
-  const totalKg = doc.totalKg || lots.reduce((s, l) => s + (Number(l.qty) || 0), 0)
+  const totalKg = lots.length > 0
+    ? lots.reduce((s, l) => s + (Number(l.qty) || 0), 0)
+    : (doc.totalKg || 0)
   const productName = doc.productName || ''
   const certNum = doc.certNumber || '___/2026/ECO'
 
