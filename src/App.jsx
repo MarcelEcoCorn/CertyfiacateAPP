@@ -488,7 +488,14 @@ export default function App() {
                   <div>
                     <Lbl>Kraj pochodzenia</Lbl>
                     <Sel value={f.origin} onChange={v => sf('origin', v)}
-                      options={[{ value: 'Poland', label: 'Poland' }, { value: 'Polska', label: 'Polska' }]} />
+                      options={[
+                        { value: 'Poland', label: 'Poland' },
+                        { value: 'Polska', label: 'Polska' },
+                        { value: 'EU', label: 'EU' },
+                        { value: 'UE', label: 'UE' },
+                        { value: 'World', label: 'World' },
+                        { value: 'Świat', label: 'Świat' },
+                      ]} />
                   </div>
                 </div>
 
