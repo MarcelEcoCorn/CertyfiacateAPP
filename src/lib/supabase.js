@@ -106,25 +106,27 @@ export async function fetchProducts() {
   if (error) throw error
   return data.map(r => ({
     id: r.id, code: r.code, name: r.name_en, namePL: r.name_pl,
+    descriptionEN: r.description_en || '',
+    descriptionPL: r.description_pl || '',
   }))
 }
 
-export async function saveProduct(code, nameEn, namePl) {
+export async function saveProduct(code, nameEn, namePl, descriptionEN = '', descriptionPL = '') {
   const { data, error } = await supabase
     .from('products')
-    .insert({ code, name_en: nameEn, name_pl: namePl })
+    .insert({ code, name_en: nameEn, name_pl: namePl, description_en: descriptionEN, description_pl: descriptionPL })
     .select().single()
   if (error) throw error
-  return { id: data.id, code: data.code, name: data.name_en, namePL: data.name_pl }
+  return { id: data.id, code: data.code, name: data.name_en, namePL: data.name_pl, descriptionEN: data.description_en || '', descriptionPL: data.description_pl || '' }
 }
 
-export async function updateProduct(id, code, nameEn, namePl) {
+export async function updateProduct(id, code, nameEn, namePl, descriptionEN = '', descriptionPL = '') {
   const { data, error } = await supabase
     .from('products')
-    .update({ code, name_en: nameEn, name_pl: namePl })
+    .update({ code, name_en: nameEn, name_pl: namePl, description_en: descriptionEN, description_pl: descriptionPL })
     .eq('id', id).select().single()
   if (error) throw error
-  return { id: data.id, code: data.code, name: data.name_en, namePL: data.name_pl }
+  return { id: data.id, code: data.code, name: data.name_en, namePL: data.name_pl, descriptionEN: data.description_en || '', descriptionPL: data.description_pl || '' }
 }
 
 export async function deleteProduct(id) {
