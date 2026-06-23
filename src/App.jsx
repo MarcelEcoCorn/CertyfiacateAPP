@@ -119,6 +119,7 @@ export default function App() {
   }, [f])
 
   function openPreview() {
+    const desc = lang === 'PL' ? product?.descriptionPL : product?.descriptionEN
     setPreview({
       buyer: f.buyerName, buyerAddress: f.buyerAddress,
       productCode: f.productCode, productName: product?.name || '',
@@ -128,6 +129,7 @@ export default function App() {
       lots: activeLots, totalKg, pallets: numPallets, kgPerLot,
       lang, docType, status: 'saved',
       notes: f.notes,
+      productDescription: desc || '',
     })
   }
 
@@ -216,7 +218,7 @@ export default function App() {
     alert(`Zaimportowano ${ok} klientów`)
   }
 
-  const [newProd, setNewProd] = useState({ code: '', nameEn: '', namePl: '' })
+  const [newProd, setNewProd] = useState({ code: '', nameEn: '', namePl: '', descriptionEN: '', descriptionPL: '' })
   const [editProd, setEditProd] = useState(null)
   function snp(k, v) { setNewProd(p => ({ ...p, [k]: v })) }
   function sep(k, v) { setEditProd(p => ({ ...p, [k]: v })) }
@@ -224,16 +226,16 @@ export default function App() {
   async function handleAddProduct() {
     if (!newProd.code.trim() || !newProd.nameEn.trim() || !newProd.namePl.trim()) { setError('Uzupełnij kod, nazwę EN i PL'); return }
     try {
-      const p = await saveProduct(newProd.code.trim(), newProd.nameEn.trim(), newProd.namePl.trim())
+      const p = await saveProduct(newProd.code.trim(), newProd.nameEn.trim(), newProd.namePl.trim(), newProd.descriptionEN, newProd.descriptionPL)
       setProducts(prev => [...prev.filter(x => x.id !== p.id), p].sort((a, b) => a.code.localeCompare(b.code)))
-      setNewProd({ code: '', nameEn: '', namePl: '' })
+      setNewProd({ code: '', nameEn: '', namePl: '', descriptionEN: '', descriptionPL: '' })
     } catch (e) { setError('Błąd: ' + e.message) }
   }
 
   async function handleUpdateProduct() {
     if (!editProd) return
     try {
-      const p = await updateProduct(editProd.id, editProd.code, editProd.name, editProd.namePL)
+      const p = await updateProduct(editProd.id, editProd.code, editProd.name, editProd.namePL, editProd.descriptionEN || '', editProd.descriptionPL || '')
       setProducts(prev => prev.map(x => x.id === p.id ? p : x))
       setEditProd(null)
     } catch (e) { setError('Błąd: ' + e.message) }
@@ -782,6 +784,20 @@ export default function App() {
                   <div><Lbl>Nazwa EN *</Lbl><Inp value={newProd.nameEn} onChange={v => snp('nameEn', v)} placeholder="Dried Potato Powder" /></div>
                   <div><Lbl>Nazwa PL *</Lbl><Inp value={newProd.namePl} onChange={v => snp('namePl', v)} placeholder="Suszone Puree Ziemniaczane" /></div>
                 </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+                  <div>
+                    <Lbl>Opis na certyfikacie EN <span style={{ fontSize: 10, color: 'var(--color-text-secondary)' }}>(opcjonalny — każda linia = nowy wiersz)</span></Lbl>
+                    <textarea value={newProd.descriptionEN} onChange={e => snp('descriptionEN', e.target.value)}
+                      placeholder={'100% potato.\nAppearance and color: ...\nMoisture: max. 9%.'}
+                      rows={4} style={{ width: '100%', padding: '7px 10px', fontSize: 12, borderRadius: 8, border: '0.5px solid var(--color-border-tertiary)', background: 'var(--color-background-primary)', color: 'var(--color-text-primary)', boxSizing: 'border-box', resize: 'vertical', fontFamily: 'inherit' }} />
+                  </div>
+                  <div>
+                    <Lbl>Opis na certyfikacie PL <span style={{ fontSize: 10, color: 'var(--color-text-secondary)' }}>(opcjonalny)</span></Lbl>
+                    <textarea value={newProd.descriptionPL} onChange={e => snp('descriptionPL', e.target.value)}
+                      placeholder={'100% ziemniaka.\nWygląd i kolor: ...\nWilgotność: maks. 9%.'}
+                      rows={4} style={{ width: '100%', padding: '7px 10px', fontSize: 12, borderRadius: 8, border: '0.5px solid var(--color-border-tertiary)', background: 'var(--color-background-primary)', color: 'var(--color-text-primary)', boxSizing: 'border-box', resize: 'vertical', fontFamily: 'inherit' }} />
+                  </div>
+                </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <button onClick={() => setImportModal('products')} style={{ padding: '7px 14px', border: '0.5px solid var(--color-border-secondary)', borderRadius: 8, background: 'transparent', cursor: 'pointer', fontSize: 13 }}>📥 Importuj z CSV</button>
                   <button onClick={handleAddProduct} style={{ padding: '8px 20px', background: '#0f6e56', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 500 }}>+ Zapisz produkt</button>
@@ -801,6 +817,18 @@ export default function App() {
                           <div><Lbl>Kod *</Lbl><Inp value={editProd.code} onChange={v => sep('code', v)} /></div>
                           <div><Lbl>Nazwa EN *</Lbl><Inp value={editProd.name} onChange={v => sep('name', v)} /></div>
                           <div><Lbl>Nazwa PL *</Lbl><Inp value={editProd.namePL} onChange={v => sep('namePL', v)} /></div>
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+                          <div>
+                            <Lbl>Opis na certyfikacie EN</Lbl>
+                            <textarea value={editProd.descriptionEN || ''} onChange={e => sep('descriptionEN', e.target.value)}
+                              rows={4} style={{ width: '100%', padding: '7px 10px', fontSize: 12, borderRadius: 8, border: '0.5px solid var(--color-border-tertiary)', background: 'var(--color-background-primary)', color: 'var(--color-text-primary)', boxSizing: 'border-box', resize: 'vertical', fontFamily: 'inherit' }} />
+                          </div>
+                          <div>
+                            <Lbl>Opis na certyfikacie PL</Lbl>
+                            <textarea value={editProd.descriptionPL || ''} onChange={e => sep('descriptionPL', e.target.value)}
+                              rows={4} style={{ width: '100%', padding: '7px 10px', fontSize: 12, borderRadius: 8, border: '0.5px solid var(--color-border-tertiary)', background: 'var(--color-background-primary)', color: 'var(--color-text-primary)', boxSizing: 'border-box', resize: 'vertical', fontFamily: 'inherit' }} />
+                          </div>
                         </div>
                         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
                           <button onClick={() => setEditProd(null)} style={{ padding: '6px 14px', border: '0.5px solid var(--color-border-tertiary)', borderRadius: 7, background: 'transparent', cursor: 'pointer', fontSize: 13 }}>Anuluj</button>
