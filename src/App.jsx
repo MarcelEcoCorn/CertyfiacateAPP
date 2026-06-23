@@ -93,7 +93,9 @@ export default function App() {
   const product = products.find(p => p.code === f.productCode) || products[0]
   const kgPerLot = packInfo ? packInfo.bagKg * packInfo.bagsPerPallet : 0
   const numPallets = Math.max(1, Math.min(34, Number(f.pallets) || 1))
-  const totalKg = numPallets * kgPerLot
+  const totalKg = f.manualLots
+    ? f.customLots.reduce((s, l) => s + (Number(l.qty) || 0), 0)
+    : numPallets * kgPerLot
 
   const dateProd = f.dateProduction || (() => {
     const d = new Date(f.dateLoading); d.setDate(d.getDate() - 1); return d.toISOString().slice(0, 10)
