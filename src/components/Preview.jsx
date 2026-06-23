@@ -143,16 +143,17 @@ export default function Preview({ doc, onSave, onBack, saving }) {
               [L.bestBefore, fmtD(doc.bestBefore)],
               [L.qty, `${totalKg.toLocaleString()}kg`],
               [L.packaging, doc.packaging],
-              [L.quality, 'According to quality specification'],
-              [L.storage, 'Temperature max 30°C, Moisture max 75%'],
+              [L.quality, L.qualityValue],
+              [L.storage, L.storageValue],
               [L.origin, doc.origin],
-              ...(doc.notes ? [['Notes', doc.notes]] : []),
+              ...(doc.notes ? [[L.notes, doc.notes]] : []),
             ])}
             <div style={{ ...rr, marginTop: 4 }}>
-              <div style={kk}>Ingredients:</div>
+              <div style={kk}>{L.ingredients}:</div>
               <div style={vv}>
-                100% potato.<br />
-                {L.appearance}<br />{L.smell}<br />{L.moisture}<br />{L.impurities}<br />{L.organoleptic}
+                {(doc.productDescription || L.defaultDescription).split('\n').map((line, i) => (
+                  <span key={i}>{line}<br /></span>
+                ))}
               </div>
             </div>
             <div style={{ fontWeight: 'bold', fontSize: 11, margin: '10px 0 4px' }}>{L.lotNumber}:</div>
