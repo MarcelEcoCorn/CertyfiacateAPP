@@ -122,11 +122,13 @@ export default function App() {
 
   function openPreview() {
     const desc = lang === 'PL' ? product?.descriptionPL : product?.descriptionEN
+    const productNameLang = lang === 'PL' ? (product?.namePL || product?.name || '') : (product?.name || '')
+    const packagingLang = lang === 'PL' ? (packInfo?.labelPL || packInfo?.label || '') : (packInfo?.label || '')
     setPreview({
       buyer: f.buyerName, buyerAddress: f.buyerAddress,
-      productCode: f.productCode, productName: product?.name || '',
+      productCode: f.productCode, productName: productNameLang,
       dateLoading: f.dateLoading, dateProduction: dateProd, bestBefore,
-      packaging: packInfo?.label || f.packaging,
+      packaging: packagingLang,
       origin: f.origin,
       lots: activeLots, totalKg, pallets: numPallets, kgPerLot,
       lang, docType, status: 'saved',
